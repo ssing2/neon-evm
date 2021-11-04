@@ -48,7 +48,7 @@ cfg_if! {
 
     } else if #[cfg(feature = "testnet")] {
 
-        const CHAIN_ID: u64 = 245022940;
+        const CHAIN_ID: u64 = 1234;
 
         macros::pubkey_array!(
             AUTHORIZED_OPERATOR_LIST,
