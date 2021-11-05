@@ -9,11 +9,12 @@ use crate::config::AUTHORIZED_OPERATOR_LIST;
 /// Authorized operator check
 pub fn authorized_operator_check(account_info: &AccountInfo) -> Result<(),EvmLoaderError> {
     if account_info.is_signer {
-        AUTHORIZED_OPERATOR_LIST
-            .iter()
-            .find(|&&item| item == *account_info.key )
-            .map(|_|())
-            .ok_or(EvmLoaderError::UnauthorizedOperator)
+        Ok(())
+//        AUTHORIZED_OPERATOR_LIST
+//            .iter()
+//            .find(|&&item| item == *account_info.key )
+//            .map(|_|())
+//            .ok_or(EvmLoaderError::UnauthorizedOperator)
     } else {
         Err(EvmLoaderError::UnauthorizedOperator)
     }
