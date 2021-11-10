@@ -68,7 +68,6 @@ COPY evm_loader/*.py evm_loader/deploy-test.sh evm_loader/test_token_keypair evm
 COPY evm_loader/performance/run.py evm_loader/performance/run.sh evm_loader/performance/deploy-evmloader.sh  /opt/
 COPY evm_loader/performance/contracts  /opt/
 COPY evm_loader/evm_loader-keypair.json /opt/
-COPY evm_loader/collateral_pool_generator.py evm_loader/collateral-pool-keypair.json /opt/
 COPY evm_loader/operator1-keypair.json /root/.config/solana/id.json
 COPY evm_loader/operator2-keypair.json /root/.config/solana/id2.json
 

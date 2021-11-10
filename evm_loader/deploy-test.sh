@@ -52,10 +52,6 @@ export $(/opt/neon-cli --evm_loader "$EVM_LOADER" neon-elf-params /opt/evm_loade
 
 sleep 25   # Wait while evm_loader deploy finalized
 
-#generate collateral pool accounts
-solana -k collateral-pool-keypair.json airdrop 1000
-python3 collateral_pool_generator.py collateral-pool-keypair.json
-
 python3 -m unittest discover -v -p 'test*.py'
 
 echo "Deploy test success"
