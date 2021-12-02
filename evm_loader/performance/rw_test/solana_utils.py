@@ -253,6 +253,13 @@ class WalletAccount(RandomAccount):
         self.retrieve_keys()
         print('Wallet public key:', self.acc.public_key())
 
+class PreparedAccount(RandomAccount):
+    def __init__(self, acc):
+        self.path = ""
+        self.acc = acc
+        print('Wallet public key:', self.acc.public_key())
+
+
 class OperatorAccount:
     def __init__(self, path=None):
         if path == None:
