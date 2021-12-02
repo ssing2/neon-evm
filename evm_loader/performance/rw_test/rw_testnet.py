@@ -1,3 +1,5 @@
+import argparse
+
 from solana_utils import *
 from web3.auto import w3
 
@@ -41,7 +43,12 @@ class init_wallet():
         print ('contract_code', cls.re_code)
 
 
-isinstance = init_wallet()
+
+parser = argparse.ArgumentParser(description='rw test.')
+parser.add_argument('--postfix', metavar="filename postfix", type=str,  help='0,1,2..', default='')
+args = parser.parse_args()
+
+isinstance = init_wallet(args.postfix)
 code_size = 524288
 min_balance = client.get_minimum_balance_for_rent_exemption(code_size, commitment=Confirmed)["result"]
 print("Minimum balance required for account {}".format(min_balance))
