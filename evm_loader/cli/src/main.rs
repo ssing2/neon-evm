@@ -19,7 +19,7 @@ use evm_loader::{
         Account,
         Contract
     },
-    config::{ token_mint, collateral_pool_base },
+    config::{  collateral_pool_base },
 };
 
 use evm::{H160, H256, U256, ExitReason,};
@@ -93,7 +93,7 @@ use libsecp256k1::PublicKey;
 
 use rlp::RlpStream;
 
-use log::{debug, error, info};
+use log::{ error, info};
 use crate::account_storage::SolanaAccountJSON;
 use evm_loader::{
     executor_state::{
@@ -127,7 +127,7 @@ impl Debug for Config {
 
 #[allow(clippy::too_many_lines)]
 fn command_emulate(config: &Config, contract_id: Option<H160>, caller_id: H160, data: Option<Vec<u8>>, value: Option<U256>) -> CommandResult {
-    debug!("command_emulate(config={:?}, contract_id={:?}, caller_id={:?}, data={:?}, value={:?})",
+    println!("command_emulate(config={:?}, contract_id={:?}, caller_id={:?}, data={:?}, value={:?})",
         config,
         contract_id,
         caller_id,
@@ -136,7 +136,7 @@ fn command_emulate(config: &Config, contract_id: Option<H160>, caller_id: H160, 
 
     let storage = match &contract_id {
         Some(program_id) =>  {
-            debug!("program_id to call: {:?}", *program_id);
+            println!("program_id to call: {:?}", *program_id);
             EmulatorAccountStorage::new(config, *program_id, caller_id)
         },
         None => {
@@ -144,7 +144,7 @@ fn command_emulate(config: &Config, contract_id: Option<H160>, caller_id: H160, 
             let trx_count = get_ether_account_nonce(config, &solana_address)?;
             let trx_count= trx_count.0;
             let program_id = get_program_ether(&caller_id, trx_count);
-            debug!("program_id to deploy: {:?}", program_id);
+            println!("program_id to deploy: {:?}", program_id);
             EmulatorAccountStorage::new(config, program_id, caller_id)
         }
     };
@@ -157,11 +157,11 @@ fn command_emulate(config: &Config, contract_id: Option<H160>, caller_id: H160, 
         let executor_substate = Box::new(ExecutorSubstate::new(gas_limit, &storage));
         let executor_state = ExecutorState::new(executor_substate, &storage);
         let mut executor = Machine::new(executor_state);
-        debug!("Executor initialized");
+        println!("Executor initialized");
 
         let (result, exit_reason) = match &contract_id {
             Some(_) =>  {
-                debug!("call_begin(storage.origin()={:?}, storage.contract()={:?}, data={:?}, value={:?})",
+                println!("call_begin(storage.origin()={:?}, storage.contract()={:?}, data={:?}, value={:?})",
                     storage.origin(),
                     storage.contract(),
                     &hex::encode(data.clone().unwrap_or_default()),
@@ -174,7 +174,7 @@ fn command_emulate(config: &Config, contract_id: Option<H160>, caller_id: H160, 
                 executor.execute()
             },
             None => {
-                debug!("create_begin(storage.origin()={:?}, data={:?}, value={:?})",
+                println!("create_begin(storage.origin()={:?}, data={:?}, value={:?})",
                     storage.origin(),
                     &hex::encode(data.clone().unwrap_or_default()),
                     value);
@@ -185,17 +185,17 @@ fn command_emulate(config: &Config, contract_id: Option<H160>, caller_id: H160, 
                 executor.execute()
             }
         };
-        debug!("Execute done, exit_reason={:?}, result={:?}", exit_reason, result);
-        debug!("{} steps executed", executor.get_steps_executed());
+        println!("Execute done, exit_reason={:?}, result={:?}", exit_reason, result);
+        println!("{} steps executed", executor.get_steps_executed());
 
         let steps_executed = executor.get_steps_executed();
         let executor_state = executor.into_state();
         let used_gas = executor_state.gasometer().used_gas() + 1; // "+ 1" because of https://github.com/neonlabsorg/neon-evm/issues/144
         let refunded_gas = executor_state.gasometer().refunded_gas();
         let needed_gas = used_gas + (if refunded_gas > 0 { u64::try_from(refunded_gas)? } else { 0 });
-        debug!("used_gas={:?} refunded_gas={:?}", used_gas, refunded_gas);
+        println!("used_gas={:?} refunded_gas={:?}", used_gas, refunded_gas);
         if exit_reason.is_succeed() {
-            debug!("Succeed execution");
+            println!("Succeed execution");
             let apply = executor_state.deconstruct();
             (exit_reason, result, Some(apply), needed_gas, steps_executed)
         } else {
@@ -203,7 +203,7 @@ fn command_emulate(config: &Config, contract_id: Option<H160>, caller_id: H160, 
         }
     };
 
-    debug!("Call done");
+    println!("Call done");
     let status = match exit_reason {
         ExitReason::Succeed(_) => {
             let (applies, _logs, _transfers, spl_transfers, spl_approves, erc20_approves) = applies_logs.unwrap();
@@ -213,7 +213,7 @@ fn command_emulate(config: &Config, contract_id: Option<H160>, caller_id: H160, 
             storage.apply_spl_transfers(spl_transfers);
             storage.apply_erc20_approves(erc20_approves);
 
-            debug!("Applies done");
+            println!("Applies done");
             "succeed".to_string()
         }
         ExitReason::Error(_) => "error".to_string(),
@@ -226,7 +226,7 @@ fn command_emulate(config: &Config, contract_id: Option<H160>, caller_id: H160, 
     info!("{}", &hex::encode(&result));
 
     if !exit_reason.is_succeed() {
-        debug!("Not succeed execution");
+        println!("Not succeed execution");
     }
 
     let accounts: Vec<AccountJSON> = storage.get_used_accounts();
@@ -275,8 +275,8 @@ fn command_create_ether_account (
     space: u64
 ) -> CommandResult {
     let (solana_address, nonce) = make_solana_program_address(ether_address, &config.evm_loader);
-    let token_address = spl_associated_token_account::get_associated_token_address(&solana_address, &token_mint::id());
-    debug!("Create ethereum account {} <- {} {}", solana_address, hex::encode(ether_address), nonce);
+    let token_address = spl_associated_token_account::get_associated_token_address(&solana_address, &Pubkey::from_str("89dre8rZjLNft7HoupGiyxu3MNftR577ZYu8bHe2kK7g").unwrap());
+    println!("Create ethereum account {} <- {} {}", solana_address, hex::encode(ether_address), nonce);
 
     let instruction = Instruction::new_with_bincode(
             config.evm_loader,
@@ -286,7 +286,7 @@ fn command_create_ether_account (
                 AccountMeta::new(solana_address, false),
                 AccountMeta::new(token_address, false),
                 AccountMeta::new_readonly(system_program::id(), false),
-                AccountMeta::new_readonly(token_mint::id(), false),
+                AccountMeta::new_readonly(Pubkey::from_str("89dre8rZjLNft7HoupGiyxu3MNftR577ZYu8bHe2kK7g").unwrap(), false),
                 AccountMeta::new_readonly(spl_token::id(), false),
                 AccountMeta::new_readonly(spl_associated_token_account::id(), false),
                 AccountMeta::new_readonly(sysvar::rent::id(), false),
@@ -304,7 +304,7 @@ fn command_create_ether_account (
     let mut finalize_tx = Transaction::new_unsigned(finalize_message);
 
     finalize_tx.try_sign(&[&*config.signer], blockhash)?;
-    debug!("signed: {:x?}", finalize_tx);
+    println!("signed: {:x?}", finalize_tx);
 
     config.rpc_client.send_and_confirm_transaction_with_spinner(&finalize_tx)?;
 
@@ -515,7 +515,7 @@ fn make_deploy_ethereum_transaction(
             gas_price: 0.into(),
             value: 0.into(),
             data: program_data.to_owned(),
-            chain_id: 111.into(), // Will fixed in #61 issue
+            chain_id: 245022940.into(), // Will fixed in #61 issue
         };
 
         rlp::encode(&tx).to_vec()
@@ -546,7 +546,7 @@ fn fill_holder_account(
     let signers = [&*config.signer];
 
     // Write code to holder account
-    debug!("Write code");
+    println!("Write code");
     let mut write_messages = vec![];
     for (chunk, i) in msg.chunks(DATA_CHUNK_SIZE).zip(0..) {
         let offset = u32::try_from(i*DATA_CHUNK_SIZE)?;
@@ -562,7 +562,7 @@ fn fill_holder_account(
         let message = Message::new(&[instruction], Some(&creator.pubkey()));
         write_messages.push(message);
     }
-    debug!("Send write message");
+    println!("Send write message");
 
     // Send write message
     {
@@ -577,7 +577,7 @@ fn fill_holder_account(
             write_transactions.push(tx);
         }
 
-        debug!("Writing program data");
+        println!("Writing program data");
         send_and_confirm_transactions_with_spinner(
             &config.rpc_client,
             &config.websocket_url,
@@ -586,7 +586,7 @@ fn fill_holder_account(
             CommitmentConfig::confirmed(),
             last_valid_slot,
         ).map_err(|err| format!("Data writes to program account failed: {}", err))?;
-        debug!("Writing program data done");
+        println!("Writing program data done");
     }
 
     Ok(())
@@ -605,11 +605,11 @@ fn fill_holder_account(
 //     let caller_public = PublicKey::from_secret_key(&caller_private);
 //     let caller_ether: H160 = keccak256_h256(&caller_public.serialize()[1..]).into();
 //     let (caller_sol, caller_nonce) = make_solana_program_address(&caller_ether, &config.evm_loader);
-//     let caller_token = spl_associated_token_account::get_associated_token_address(&caller_sol, &evm_loader::neon::token_mint::id());
+//     let caller_token = spl_associated_token_account::get_associated_token_address(&caller_sol, &evm_loader::neon::Pubkey::from_str("89dre8rZjLNft7HoupGiyxu3MNftR577ZYu8bHe2kK7g").unwrap());
 //     let caller_holder = create_block_token_account(config, &caller_ether, &caller_sol).unwrap();
-//     debug!("caller_sol = {}", caller_sol);
-//     debug!("caller_ether = {}", caller_ether);
-//     debug!("caller_token = {}", caller_token);
+//     println!("caller_sol = {}", caller_sol);
+//     println!("caller_ether = {}", caller_ether);
+//     println!("caller_token = {}", caller_token);
 
 //     (caller_private, caller_ether, caller_sol, caller_nonce, caller_token, caller_holder)
 // }
@@ -625,7 +625,7 @@ fn get_ether_account_nonce(
     }
 
     let trx_count : u64;
-    debug!("get_ether_account_nonce data = {:?}", data);
+    println!("get_ether_account_nonce data = {:?}", data);
     let account = match evm_loader::account_data::AccountData::unpack(&data) {
         Ok(acc_data) =>
             match acc_data {
@@ -636,11 +636,11 @@ fn get_ether_account_nonce(
     };
     trx_count = account.trx_count;
     let caller_ether = account.ether;
-    let caller_token = spl_associated_token_account::get_associated_token_address(caller_sol, &token_mint::id());
+    let caller_token = spl_associated_token_account::get_associated_token_address(caller_sol, &Pubkey::from_str("89dre8rZjLNft7HoupGiyxu3MNftR577ZYu8bHe2kK7g").unwrap());
 
-    debug!("Caller: ether {}, solana {}", caller_ether, caller_sol);
-    debug!("Caller trx_count: {} ", trx_count);
-    debug!("caller_token = {}", caller_token);
+    println!("Caller: ether {}, solana {}", caller_ether, caller_sol);
+    println!("Caller trx_count: {} ", trx_count);
+    println!("caller_token = {}", caller_token);
 
     Ok((trx_count, caller_ether, caller_token))
 }
@@ -668,18 +668,18 @@ fn get_ethereum_contract_account_credentials(
         let (address, nonce) = make_solana_program_address(&ether, &config.evm_loader);
         (address, ether, nonce)
     };
-    debug!("Create account: {} with {} {}", program_id, program_ether, program_nonce);
+    println!("Create account: {} with {} {}", program_id, program_ether, program_nonce);
 
-    let program_token = spl_associated_token_account::get_associated_token_address(&program_id, &token_mint::id());
+    let program_token = spl_associated_token_account::get_associated_token_address(&program_id, &Pubkey::from_str("89dre8rZjLNft7HoupGiyxu3MNftR577ZYu8bHe2kK7g").unwrap());
 
     let (program_code, program_seed) = {
         let seed: &[u8] = &[ &[ACCOUNT_SEED_VERSION], program_ether.as_bytes() ].concat();
         let seed = bs58::encode(seed).into_string();
-        debug!("Code account seed {} and len {}", &seed, &seed.len());
+        println!("Code account seed {} and len {}", &seed, &seed.len());
         let address = Pubkey::create_with_seed(&creator.pubkey(), &seed, &config.evm_loader).unwrap();
         (address, seed)
     };
-    debug!("Create code account: {}", &program_code.to_string());
+    println!("Create code account: {}", &program_code.to_string());
 
     (program_id, program_ether, program_nonce, program_token, program_code, program_seed)
 }
@@ -707,7 +707,7 @@ fn create_ethereum_contract_accounts_in_solana(
     if let Some(_account) = config.rpc_client.get_account_with_commitment(program_id, CommitmentConfig::confirmed())?.value
     {
         return Err("Account already exist".to_string().into());
-        // debug!("Account already exist");
+        // println!("Account already exist");
     }
 
     let instructions = vec![
@@ -729,7 +729,7 @@ fn create_ethereum_contract_accounts_in_solana(
                 AccountMeta::new(*program_token, false),
                 AccountMeta::new(*program_code, false),
                 AccountMeta::new_readonly(system_program::id(), false),
-                AccountMeta::new_readonly(token_mint::id(), false),
+                AccountMeta::new_readonly(Pubkey::from_str("89dre8rZjLNft7HoupGiyxu3MNftR577ZYu8bHe2kK7g").unwrap(), false),
                 AccountMeta::new_readonly(spl_token::id(), false),
                 AccountMeta::new_readonly(spl_associated_token_account::id(), false),
                 AccountMeta::new_readonly(sysvar::rent::id(), false),
@@ -744,9 +744,9 @@ fn create_storage_account(config: &Config) -> Result<Pubkey, Error> {
     use rand::Rng;
     let mut rng = rand::thread_rng();
     let creator = &config.signer;
-    debug!("Create storage account");
+    println!("Create storage account");
     let storage = create_account_with_seed(config, &creator.pubkey(), &creator.pubkey(), &rng.gen::<u32>().to_string(), 128*1024_u64)?;
-    debug!("storage = {}", storage);
+    println!("storage = {}", storage);
     Ok(storage)
 }
 
@@ -754,7 +754,7 @@ fn get_collateral_pool_account_and_index(config: &Config) -> (Pubkey, u32) {
     let collateral_pool_index = 2;
     let seed = format!("{}{}", collateral_pool_base::PREFIX, collateral_pool_index);
     let collateral_pool_account = Pubkey::create_with_seed(
-        &collateral_pool_base::id(),
+        &Pubkey::from_str("7SBdHNeF9FFYySEoszpjZXXQsAiwa5Lzpsz6nUJWusEx").unwrap(),
         &seed, 
         &config.evm_loader).unwrap();
 
@@ -774,7 +774,7 @@ fn parse_transaction_reciept(config: &Config, result: EncodedConfirmedTransactio
                                 if compiled_instruction.program_id_index as usize == evm_loader_index.unwrap() {
                                     let decoded = bs58::decode(compiled_instruction.data.clone()).into_vec().unwrap();
                                     if decoded[0] == 6 {
-                                        debug!("success");
+                                        println!("success");
                                         return_value = Some(decoded[1..].to_vec());
                                         break;
                                     }
@@ -799,7 +799,7 @@ fn create_account_with_seed(
     let created_account = Pubkey::create_with_seed(base, seed, &config.evm_loader).unwrap();
 
     if config.rpc_client.get_account_with_commitment(&created_account, CommitmentConfig::confirmed())?.value.is_none() {
-        debug!("Account not found");
+        println!("Account not found");
         let minimum_balance_for_account = config.rpc_client.get_minimum_balance_for_rent_exemption(len.try_into().unwrap())?;
         let create_acc_instruction = system_instruction::create_account_with_seed(
             funding,
@@ -810,9 +810,12 @@ fn create_account_with_seed(
             len,
             &config.evm_loader
         );
+        println!("send_transaction");
+
         send_transaction(config, &[create_acc_instruction])?;
+        println!("transaction is sended");
     } else {
-        debug!("Account found");
+        println!("Account found");
     }
 
     Ok(created_account)
@@ -867,7 +870,7 @@ fn command_deploy(
 ) -> CommandResult {
     let creator = &config.signer;
     let program_data = read_program_data(program_location)?;
-    let operator_token = spl_associated_token_account::get_associated_token_address(&creator.pubkey(), &token_mint::id());
+    let operator_token = spl_associated_token_account::get_associated_token_address(&creator.pubkey(), &Pubkey::from_str("89dre8rZjLNft7HoupGiyxu3MNftR577ZYu8bHe2kK7g").unwrap());
 
     // Create ethereum caller private key from sign of array by signer
     // let (caller_private, caller_ether, caller_sol, _caller_nonce) = get_ethereum_caller_credentials(config);
@@ -885,10 +888,10 @@ fn command_deploy(
     let (caller_sol, _) = make_solana_program_address(&caller_ether, &config.evm_loader);
 
     if config.rpc_client.get_account_with_commitment(&caller_sol, CommitmentConfig::confirmed())?.value.is_none() {
-        debug!("Caller account not found");
+        println!("Caller account not found");
         command_create_ether_account(config, &caller_ether, 10_u64.pow(9), 0  )?;
     } else {
-        debug!(" Caller account found");
+        println!(" Caller account found");
     }
 
     // Get caller nonce
@@ -939,7 +942,7 @@ fn command_deploy(
                         AccountMeta::new(caller_token, false),
 
                         AccountMeta::new_readonly(config.evm_loader, false),
-                        AccountMeta::new_readonly(token_mint::id(), false),
+                        AccountMeta::new_readonly(Pubkey::from_str("89dre8rZjLNft7HoupGiyxu3MNftR577ZYu8bHe2kK7g").unwrap(), false),
                         AccountMeta::new_readonly(spl_token::id(), false),
                         ];
 
@@ -947,18 +950,20 @@ fn command_deploy(
     holder_with_accounts.extend(accounts.clone());
     // Send trx_from_account_data_instruction
     {
-        debug!("trx_from_account_data_instruction holder_plus_accounts: {:?}", holder_with_accounts);
+        println!("trx_from_account_data_instruction holder_plus_accounts: {:?}", holder_with_accounts);
         let trx_from_account_data_instruction = Instruction::new_with_bincode(config.evm_loader,
                                                                               &(0x16_u8, collateral_pool_index, 0_u64),
                                                                               holder_with_accounts);
+        println!("send_transaction");
         instrstruction.push(trx_from_account_data_instruction);
         send_transaction(config, &instrstruction)?;
+        println!("send_transaction is done");
     }
 
     // Continue while no result
     loop {
         let continue_accounts = accounts.clone();
-        debug!("continue continue_accounts: {:?}", continue_accounts);
+        println!("continue continue_accounts: {:?}", continue_accounts);
         let continue_instruction = Instruction::new_with_bincode(config.evm_loader,
                                                                  &(0x14_u8, collateral_pool_index, 400_u64),
                                                                  continue_accounts);
@@ -977,8 +982,8 @@ fn command_deploy(
 
         if let Some(value) = return_value {
             let (exit_code, data) = value.split_at(1);
-            debug!("exit code {}", exit_code[0]);
-            debug!("return data {}", &hex::encode(data));
+            println!("exit code {}", exit_code[0]);
+            println!("return data {}", &hex::encode(data));
             break;
         }
     }
@@ -1084,7 +1089,7 @@ fn command_cancel_trx(
         let (trx_count, _caller_ether, caller_token) = get_ether_account_nonce(config, &keys[3])?;
 
         let operator = &config.signer.pubkey();
-        let operator_token = spl_associated_token_account::get_associated_token_address(operator, &token_mint::id());
+        let operator_token = spl_associated_token_account::get_associated_token_address(operator, &Pubkey::from_str("89dre8rZjLNft7HoupGiyxu3MNftR577ZYu8bHe2kK7g").unwrap());
 
         let mut accounts_meta : Vec<AccountMeta> = vec![
             AccountMeta::new(*storage_account, false),              // Storage account
@@ -1097,7 +1102,7 @@ fn command_cancel_trx(
 
         let system_accounts : Vec<Pubkey> = vec![
             config.evm_loader,
-            token_mint::id(),
+            Pubkey::from_str("89dre8rZjLNft7HoupGiyxu3MNftR577ZYu8bHe2kK7g").unwrap(),
             spl_token::id(),
             spl_associated_token_account::id(),
             sysvar::rent::id(),
