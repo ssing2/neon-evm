@@ -81,28 +81,34 @@ code_account_current = isinstance.re_code
 while True:
     count = count + 1
     print("count", count)
-    seed_bin = b58encode(ACCOUNT_SEED_VERSION + os.urandom(20))
-    seed = seed_bin.decode('utf8')
-    code_account_new = accountWithSeed(isinstance.acc.public_key(), seed, PublicKey(evm_loader_id))
 
-
+    trx_cnt = 0
     trx = Transaction()
-    trx.add( createAccountWithSeed(isinstance.acc.public_key(), isinstance.acc.public_key(), seed, min_balance, code_size, PublicKey(evm_loader_id)) )
-    print("new code account:", code_account_new)
 
-    resize_instr = TransactionInstruction(
-        keys=[
-            AccountMeta(pubkey=isinstance.reId, is_signer=False, is_writable=True),
-            AccountMeta(pubkey=code_account_current, is_signer=False, is_writable=True),
-            AccountMeta(pubkey=code_account_new, is_signer=False, is_writable=True),
-            AccountMeta(pubkey=isinstance.acc.public_key(), is_signer=True, is_writable=False)
-        ],
-        program_id=evm_loader_id,
-        data=bytearray.fromhex("11") + bytes(seed_bin)  # 17- ResizeStorageAccount
-    )
+    while trx_cnt < 2:
+        trx_cnt = trx_cnt + 1
 
-    trx.add(resize_instr)
+        seed_bin = b58encode(ACCOUNT_SEED_VERSION + os.urandom(20))
+        seed = seed_bin.decode('utf8')
+        code_account_new = accountWithSeed(isinstance.acc.public_key(), seed, PublicKey(evm_loader_id))
+
+        trx.add( createAccountWithSeed(isinstance.acc.public_key(), isinstance.acc.public_key(), seed, min_balance, code_size, PublicKey(evm_loader_id)) )
+        print("new code account:", code_account_new)
+
+        resize_instr = TransactionInstruction(
+            keys=[
+                AccountMeta(pubkey=isinstance.reId, is_signer=False, is_writable=True),
+                AccountMeta(pubkey=code_account_current, is_signer=False, is_writable=True),
+                AccountMeta(pubkey=code_account_new, is_signer=False, is_writable=True),
+                AccountMeta(pubkey=isinstance.acc.public_key(), is_signer=True, is_writable=False)
+            ],
+            program_id=evm_loader_id,
+            data=bytearray.fromhex("11") + bytes(seed_bin)  # 17- ResizeStorageAccount
+        )
+
+        trx.add(resize_instr)
+        code_account_current = code_account_new
+
     res = send_transaction(client, trx, isinstance.acc)
     print(res['result'])
     print("")
-    code_account_current = code_account_new
