@@ -78,7 +78,7 @@ print("Minimum balance required for account {}".format(min_balance))
 count = 0
 code_account_current = isinstance.re_code
 
-while count < 2:
+while True:
     count = count + 1
     print("count", count)
     seed_bin = b58encode(ACCOUNT_SEED_VERSION + os.urandom(20))
