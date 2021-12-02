@@ -23,20 +23,28 @@ args = parser.parse_args()
 instance = init_wallet()
 
 senders=[]
+lamports = 13000000000
 with open(senders_file, mode='r') as f:
     keypairs = f.readlines()
+    count = 0
     for keypair in keypairs:
         acc = Account(bytes.fromhex(keypair[0:64]))
-        senders.append(acc)
+        if (getBalance(acc.public_key()) < lamports):
+            senders.append(acc)
+        count = count + 1
+        if count >= int(args.count):
+            break
+        # print(acc.public_key(), getBalance(acc.public_key()) / 10 ** 9)
         # print(acc.public_key())
 
 
-for sender in senders[0:int(args.count)]:
-    param = TransferParams(from_pubkey= instance.acc.public_key(), to_pubkey=sender.public_key(), lamports=13000000000)
+for sender in senders:
+    param = TransferParams(from_pubkey= instance.acc.public_key(), to_pubkey=sender.public_key(), lamports=lamports)
     tx = Transaction()
     tx.add(transfer(param))
     res = send_transaction(client, tx, instance.acc)
 
-for sender in senders[0:int(args.count)]:
+for sender in senders:
     print(sender.public_key(), getBalance(sender.public_key())/10**9)
 
+print ("total:", len(senders))
