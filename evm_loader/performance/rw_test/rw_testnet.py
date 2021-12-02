@@ -85,7 +85,7 @@ while True:
     trx_cnt = 0
     trx = Transaction()
 
-    while trx_cnt < 6:
+    while trx_cnt < 5:
         trx_cnt = trx_cnt + 1
 
         seed_bin = b58encode(ACCOUNT_SEED_VERSION + os.urandom(20))
