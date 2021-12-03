@@ -226,6 +226,14 @@ pub enum EvmInstruction<'a> {
         /// Data to write
         bytes: &'a [u8],
     },
+
+    /// Temporary Instruction for testing transactions that contain a lot of BPF-instructions
+    ///
+    /// # Account references
+    ///   0. \[READ\] src system account
+    ///   1. \[WRITE\] dest system account
+    ///   2. \[SIGNER\] funding account
+    MaxBpfInstruction
 }
 
 impl<'a> EvmInstruction<'a> {
@@ -352,6 +360,9 @@ impl<'a> EvmInstruction<'a> {
                 let (step_count, _rest) = rest.split_at(8);
                 let step_count = step_count.try_into().ok().map(u64::from_le_bytes).ok_or(InvalidInstructionData)?;
                 EvmInstruction::ExecuteTrxFromAccountDataIterativeV02 {collateral_pool_index, step_count}
+            },
+            23 => {
+                EvmInstruction::MaxBpfInstruction
             },
 
             _ => return Err(InvalidInstructionData),

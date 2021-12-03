@@ -745,6 +745,17 @@ fn process_instruction<'a>(
             do_write(holder_info, offset, bytes)
         },
 
+        EvmInstruction::MaxBpfInstruction => {
+            let src_account_info = next_account_info(account_info_iter)?;
+            let dst_account_info = next_account_info(account_info_iter)?;
+
+            let src_account_data = src_account_info.try_borrow_mut_data()?;
+            let mut dst_account_data = dst_account_info.try_borrow_mut_data()?;
+
+            dst_account_data[..src_account_data.len()].copy_from_slice(&src_account_data);
+            return Ok(())
+        },
+
         EvmInstruction::Write |
         EvmInstruction::Cancel |
         EvmInstruction::Finalise |

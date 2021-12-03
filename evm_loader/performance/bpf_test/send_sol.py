@@ -18,12 +18,13 @@ class init_wallet():
 
 parser = argparse.ArgumentParser(description='transfer SOL')
 parser.add_argument('--count', metavar="count senders", type=str,  help='0,1,2..', default='')
+parser.add_argument('--sol', metavar="SOL", type=str,  help='1,2..', default='')
 args = parser.parse_args()
 
 instance = init_wallet()
 
 senders=[]
-lamports = 13000000000
+lamports = int(args.sol)*10**9
 with open(senders_file, mode='r') as f:
     keypairs = f.readlines()
     count = 0
@@ -31,11 +32,12 @@ with open(senders_file, mode='r') as f:
         acc = Account(bytes.fromhex(keypair[0:64]))
         if (getBalance(acc.public_key()) < lamports):
             senders.append(acc)
+        print(acc.public_key(), getBalance(acc.public_key()) / 10 ** 9)
+        # print(acc.public_key())
+
         count = count + 1
         if count >= int(args.count):
             break
-        # print(acc.public_key(), getBalance(acc.public_key()) / 10 ** 9)
-        # print(acc.public_key())
 
 
 for sender in senders:
@@ -44,6 +46,7 @@ for sender in senders:
     tx.add(transfer(param))
     res = send_transaction(client, tx, instance.acc)
 
+print("the balances were updated: ")
 for sender in senders:
     print(sender.public_key(), getBalance(sender.public_key())/10**9)
 

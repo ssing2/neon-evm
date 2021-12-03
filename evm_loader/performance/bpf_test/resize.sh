@@ -26,4 +26,4 @@ echo SOLANA_URL $SOLANA_URL
 echo -e '\nCOUNT OF PROCESSES' $1
 
 
-parallel --jobs 0 --keep-order --results log.rw_test python3 rw_testnet.py --postfix {}   :::  $(seq $1)
+parallel --jobs 0 --keep-order --results log.resize python3 resize.py --postfix {}   :::  $(seq $1)
