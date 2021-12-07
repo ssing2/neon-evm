@@ -757,7 +757,7 @@ fn process_instruction<'a>(
         },
 
         EvmInstruction::MaxBpfInstructionConsumedBySyscalls {sign, msg} =>{
-            for _i in 0..10{
+            for _i in 0..18{
                 let caller = verify_tx_signature(sign, msg).map_err(|e| E!(ProgramError::MissingRequiredSignature; "Error={:?}", e))?;
                 let program_seeds: Vec<&[u8]> = vec![&[ACCOUNT_SEED_VERSION], caller.as_bytes()];
                 let (_caller_sol, _) = Pubkey::find_program_address(&program_seeds, program_id);

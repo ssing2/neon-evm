@@ -64,7 +64,7 @@ while count < 1:
         bytes.fromhex(caller_eth_pr_key.privateKey.hex()[2:]),
         0)
 
-    while instrucion_cnt < 1:
+    while instrucion_cnt < 8:
         instrucion_cnt = instrucion_cnt + 1
 
         resize_instr = TransactionInstruction(
