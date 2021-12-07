@@ -76,8 +76,8 @@ while True:
     # for i in caller_ether:
     #     print(i, end=", ")
 
-    while instrucion_cnt < 213:
-    # while instrucion_cnt < 100:
+    # while instrucion_cnt < 213:
+    while instrucion_cnt < 100:
         instrucion_cnt = instrucion_cnt + 1
 
         instr = TransactionInstruction(
