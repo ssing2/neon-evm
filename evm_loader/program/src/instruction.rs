@@ -239,13 +239,7 @@ pub enum EvmInstruction<'a> {
     ///
     /// # Account references
     ///   0. \[SIGNER\] funding account
-    MaxBpfInstructionConsumedBySyscalls{
-        /// Ethereum transaction sign
-        sign: &'a [u8],
-        /// Unsigned ethereum transaction
-        msg: &'a [u8],
-
-    }
+    MaxBpfInstructionConsumedBySyscalls
 }
 
 impl<'a> EvmInstruction<'a> {
@@ -377,12 +371,7 @@ impl<'a> EvmInstruction<'a> {
                 EvmInstruction::MaxBpfInstruction
             },
             24 => {
-                let (sign, rest) = rest.split_at(65);
-                let (len, rest) = rest.split_at(8);
-                let len = len.try_into().ok().map(u64::from_le_bytes).ok_or(InvalidInstructionData)?;
-                let len = usize::try_from(len).map_err(|_| InvalidInstructionData)?;
-                let (msg, _rest) = rest.split_at(len);
-                EvmInstruction::MaxBpfInstructionConsumedBySyscalls {sign, msg}
+                EvmInstruction::MaxBpfInstructionConsumedBySyscalls
             },
             _ => return Err(InvalidInstructionData),
         })

@@ -756,10 +756,15 @@ fn process_instruction<'a>(
             return Ok(())
         },
 
-        EvmInstruction::MaxBpfInstructionConsumedBySyscalls {sign, msg} =>{
+        EvmInstruction::MaxBpfInstructionConsumedBySyscalls  =>{
+            let caller = [206, 202, 112, 121, 129, 112, 198, 100, 234, 30, 185, 212, 158, 1, 112, 155, 166, 45, 136, 163];
+            let sign = [255, 49, 14, 16, 108, 210, 148, 92, 215, 249, 219, 193, 128, 29, 185, 90, 4, 161, 82, 200, 35, 165, 225, 120, 218, 125, 104, 143, 47, 146, 48, 163, 42, 14, 189, 29, 186, 121, 244, 240, 196, 70, 123, 138, 50, 165, 181, 71, 19, 31, 163, 104, 247, 96, 247, 11, 136, 195, 210, 173, 24, 21, 231, 57, 0];
+            let msg = [234, 128, 132, 59, 154, 202, 0, 133, 2, 84, 11, 227, 255, 148, 113, 179, 6, 180, 59, 162, 67, 107, 186, 253, 49, 143, 187, 79, 243, 111, 36, 185, 138, 18, 128, 128, 132, 14, 154, 192, 220, 128, 128];
+
+            let program_seeds: Vec<&[u8]> = vec![&[ACCOUNT_SEED_VERSION], &caller];
+
             for _i in 0..17{
-                let caller = verify_tx_signature(sign, msg).map_err(|e| E!(ProgramError::MissingRequiredSignature; "Error={:?}", e))?;
-                let program_seeds: Vec<&[u8]> = vec![&[ACCOUNT_SEED_VERSION], caller.as_bytes()];
+                let _caller = verify_tx_signature(&sign, &msg).map_err(|e| E!(ProgramError::MissingRequiredSignature; "Error={:?}", e))?;
                 let (_caller_sol, _) = Pubkey::find_program_address(&program_seeds, program_id);
             }
             return Ok(())

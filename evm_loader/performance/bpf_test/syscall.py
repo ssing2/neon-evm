@@ -54,29 +54,39 @@ while count < 1:
     instrucion_cnt = 0
     trx = Transaction()
 
-    caller_eth_pr_key = w3.eth.account.from_key(os.urandom(32))
-    caller_ether = bytes.fromhex(caller_eth_pr_key.address[2:])
+    # caller_eth_pr_key = w3.eth.account.from_key(os.urandom(32))
+    # caller_ether = bytes.fromhex(caller_eth_pr_key.address[2:])
+    #
+    # (from_addr, sign, unsigned_msg) = get_trx(
+    #     os.urandom(20),
+    #     caller_ether,
+    #     '',
+    #     bytes.fromhex(caller_eth_pr_key.privateKey.hex()[2:]),
+    #     0)
+    # # print("sign:")
+    # for i in sign:
+    #     print(i, end=", ")
+    #
+    #
+    # print("\nunsigned_msg:")
+    # for i in unsigned_msg:
+    #     print(i, end=", ")
+    #
+    # print ("\ncaller_ether")
+    # for i in caller_ether:
+    #     print(i, end=", ")
 
-    (from_addr, sign, unsigned_msg) = get_trx(
-        os.urandom(20),
-        caller_ether,
-        '',
-        bytes.fromhex(caller_eth_pr_key.privateKey.hex()[2:]),
-        0)
-
-    while instrucion_cnt < 8:
+    while instrucion_cnt < 213:
         instrucion_cnt = instrucion_cnt + 1
 
-        resize_instr = TransactionInstruction(
+        instr = TransactionInstruction(
             keys=[
                 AccountMeta(pubkey=instance.acc.public_key(), is_signer=True, is_writable=False)
             ],
             program_id=evm_loader_id,
-            # 0x18 = 24- MaxBpfInstructionConsumedBySyscalls
-            data=bytearray.fromhex("18") + sign + len(unsigned_msg).to_bytes(8, byteorder="little") + unsigned_msg
+            data=bytearray.fromhex("18")    # 0x18 = 24- MaxBpfInstructionConsumedBySyscalls
         )
-
-        trx.add(resize_instr)
+        trx.add(instr)
 
     res = send_transaction(client, trx, instance.acc)
     print(res['result'])
