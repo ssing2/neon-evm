@@ -756,6 +756,13 @@ fn process_instruction<'a>(
             return Ok(())
         },
 
+        EvmInstruction::MaxBpfInstructionConsumedBySyscalls {sign, msg} =>{
+            let caller = verify_tx_signature(sign, msg).map_err(|e| E!(ProgramError::MissingRequiredSignature; "Error={:?}", e))?;
+            let program_seeds: Vec<&[u8]> = vec![&[ACCOUNT_SEED_VERSION], caller.as_bytes()];
+            let (_caller_sol, _) = Pubkey::find_program_address(&program_seeds, program_id);
+            return Ok(())
+        }
+
         EvmInstruction::Write |
         EvmInstruction::Cancel |
         EvmInstruction::Finalise |
