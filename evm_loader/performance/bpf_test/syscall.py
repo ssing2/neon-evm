@@ -30,8 +30,7 @@ class init_wallet():
 
 def get_trx(to, caller_eth, input, pr_key, value):
     tx = {'to': to, 'value': value, 'gas': 9999999999, 'gasPrice': 10**9,
-          # tx = {'to': contract_eth, 'value': value, 'gas': 9999999999, 'gasPrice': 0,
-          'nonce': trx_count[caller], 'data': input, 'chainId': chain_id}
+          'nonce': 0, 'data': input, 'chainId': chain_id}
     (from_addr, sign, msg) = make_instruction_data_from_tx(tx, pr_key)
 
     assert (from_addr == caller_eth)
@@ -55,14 +54,14 @@ while count < 1:
     instrucion_cnt = 0
     trx = Transaction()
 
-    caller_eth_pr_key = w3.eth.account.from_key(os.random(32))
+    caller_eth_pr_key = w3.eth.account.from_key(os.urandom(32))
     caller_ether = bytes.fromhex(caller_eth_pr_key.address[2:])
 
     (from_addr, sign, unsigned_msg) = get_trx(
         os.urandom(20),
         caller_ether,
         '',
-        caller_eth_pr_key,
+        bytes.fromhex(caller_eth_pr_key.privateKey.hex()[2:]),
         0)
 
     while instrucion_cnt < 1:
