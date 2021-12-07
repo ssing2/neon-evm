@@ -89,6 +89,10 @@ while True:
         )
         trx.add(instr)
 
-    res = send_transaction(client, trx, instance.acc)
+    # res = send_transaction(client, trx, instance.acc)
+    res = client.send_transaction(trx, instance.acc, opts=TxOpts(skip_confirmation=True, preflight_commitment="confirmed", skip_preflight=False))
+    confirm_transaction(client, res["result"])
+    res = client.get_confirmed_transaction(res["result"])
+
     print(res['result'])
     print("")
