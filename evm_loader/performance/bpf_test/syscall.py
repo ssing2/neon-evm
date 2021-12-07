@@ -7,7 +7,7 @@ solana_url = os.environ.get("SOLANA_URL", "http://localhost:8899")
 client = Client(solana_url)
 evm_loader_id = os.environ.get("EVM_LOADER")
 senders_file = "sender.json"
-chain_id =
+chain_id = 245022940
 
 class init_wallet():
     def __init__(cls, count):
@@ -47,7 +47,8 @@ instance = init_wallet(int(args.postfix))
 count = 0
 
 
-while True:
+# while True:
+while count < 1:
     count = count + 1
     print("count", count)
 
@@ -64,7 +65,7 @@ while True:
         caller_eth_pr_key,
         0)
 
-    while instrucion_cnt < 143:
+    while instrucion_cnt < 1:
         instrucion_cnt = instrucion_cnt + 1
 
         resize_instr = TransactionInstruction(
