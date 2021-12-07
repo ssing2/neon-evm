@@ -46,8 +46,8 @@ instance = init_wallet(int(args.postfix))
 count = 0
 
 
-# while True:
-while count < 1:
+while True:
+# while count < 1:
     count = count + 1
     print("count", count)
 
