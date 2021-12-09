@@ -20,8 +20,8 @@ while trx_count < 1:
 
     trx = Transaction()
     instr_count = 0
-    # while instr_count < 213:
-    while instr_count < 10:
+    while instr_count < 213:
+    # while instr_count < 100:
         instr_count = instr_count + 1
 
         instr = TransactionInstruction(
