@@ -4,9 +4,7 @@ from solana.account import Account
 from solana.transaction import AccountMeta, TransactionInstruction, Transaction
 
 solana_url = "http://neon.testnet.rpcpool.com/c7710a7b633cbadb9be9900c7946/"
-solana_url = "http://localhost:8899"
 evm_loader_id = "eeLSJgWzzxrqKv1UxtRVVH8FX3qCQWUs9QuAjJpETGU"
-evm_loader_id = "FCD2XTtt1t9f6z6ZwBViGFhov1LZWhuYDaDpmi3tqjbQ"
 client = Client(solana_url)
 
 sender = Account(bytes.fromhex("1338c8c2f08198a70df3a0b80d873fe7b3fdbedc18836754400a27d797fc2c0e"))
