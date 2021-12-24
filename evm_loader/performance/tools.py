@@ -22,8 +22,8 @@ from spl.token._layouts import INSTRUCTIONS_LAYOUT, InstructionType  # type: ign
 evm_loader_id = os.environ.get("EVM_LOADER")
 trx_cnt = os.environ.get("CNT", 10)
 
-# chain_id = 111
-chain_id = 245022940
+chain_id = 111
+# chain_id = 245022940
 transfer_sum = 1
 
 sysinstruct = "Sysvar1nstructions1111111111111111111111111"
@@ -263,26 +263,6 @@ def sol_instr_keccak(keccak_instruction):
     )
 
 
-def sol_instr_05(evm_instruction, contract, contract_code, caller, add_meta=[]):
-    account_meta = [
-        AccountMeta(pubkey=contract, is_signer=False, is_writable=True),
-        AccountMeta(pubkey=get_associated_token_address(PublicKey(contract), ETH_TOKEN_MINT_ID), is_signer=False, is_writable=True),
-        AccountMeta(pubkey=caller, is_signer=False, is_writable=True),
-        AccountMeta(pubkey=get_associated_token_address(PublicKey(caller), ETH_TOKEN_MINT_ID), is_signer=False, is_writable=True),
-        ] + add_meta +[
-        AccountMeta(pubkey=PublicKey(sysinstruct), is_signer=False, is_writable=False),
-        AccountMeta(pubkey=evm_loader_id, is_signer=False, is_writable=False),
-        AccountMeta(pubkey=ETH_TOKEN_MINT_ID, is_signer=False, is_writable=False),
-        # AccountMeta(pubkey=TOKEN_PROGRAM_ID, is_signer=False, is_writable=False),
-        AccountMeta(pubkey=PublicKey(sysvarclock), is_signer=False, is_writable=False),
-    ]
-    if contract_code != "":
-        account_meta.insert(2, AccountMeta(pubkey=contract_code, is_signer=False, is_writable=True))
-
-    return TransactionInstruction(program_id=evm_loader_id,
-                                  data=bytearray.fromhex("05") + evm_instruction,
-                                  keys=account_meta)
-
 
 def mint_erc20_send(erc20_sol, erc20_code, account_eth, account_sol, acc, sum):
     func_name = bytearray.fromhex("03") + abi.function_signature_to_4byte_selector('mint(address,uint256)')
@@ -421,7 +401,7 @@ def confirm_transaction_(http_client, tx_sig, confirmations=0):
     raise RuntimeError("could not confirm transaction: ", tx_sig)
 
 
-def create_neon_evm_instr_05(evm_loader_program_id,
+def sol_instr_05(evm_loader_program_id,
                                     caller_sol_acc,
                                     operator_sol_acc,
                                     contract_sol_acc,
@@ -445,15 +425,20 @@ def create_neon_evm_instr_05(evm_loader_program_id,
             AccountMeta(pubkey=get_associated_token_address(operator_sol_acc, ETH_TOKEN_MINT_ID), is_signer=False, is_writable=True),
             # User's NEON token account:
             AccountMeta(pubkey=get_associated_token_address(PublicKey(caller_sol_acc), ETH_TOKEN_MINT_ID), is_signer=False, is_writable=True),
-            ] + add_meta + [
             # System program account:
             AccountMeta(pubkey=PublicKey(system), is_signer=False, is_writable=False),
 
             AccountMeta(pubkey=contract_sol_acc, is_signer=False, is_writable=True),
             AccountMeta(pubkey=code_sol_acc, is_signer=False, is_writable=True),
-            AccountMeta(pubkey=caller_sol_acc, is_signer=False, is_writable=True),
+            AccountMeta(pubkey=caller_sol_acc, is_signer=False, is_writable=True)
+             ] + add_meta + [
 
             AccountMeta(pubkey=PublicKey(sysinstruct), is_signer=False, is_writable=False),
             AccountMeta(pubkey=evm_loader_program_id, is_signer=False, is_writable=False),
             AccountMeta(pubkey=TOKEN_PROGRAM_ID, is_signer=False, is_writable=False),
         ])
+
+def create_collateral_pool_address(collateral_pool_index):
+    COLLATERAL_SEED_PREFIX = "collateral_seed_"
+    seed = COLLATERAL_SEED_PREFIX + str(collateral_pool_index)
+    return accountWithSeed(PublicKey(collateral_pool_base), seed, PublicKey(EVM_LOADER))

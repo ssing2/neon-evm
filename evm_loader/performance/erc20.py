@@ -5,6 +5,7 @@ from spl_ import mint_spl
 from uniswap import mint_and_approve_swap
 from solana.system_program import TransferParams, transfer
 
+collateral_pool_index_buf = 1
 erc20_factory_path = "contracts/Factory.binary"
 
 def check_address_event(result, factory_eth, erc20_eth):
@@ -31,15 +32,28 @@ def get_filehash(factory, factory_code, factory_eth, instance):
         instance.caller_ether,
         trx_data,
         bytes(instance.caller_eth_pr_key),
-        0
+        0,
+        use_local_nonce_counter=False
     )
 
     trx = Transaction()
-    trx.add(sol_instr_keccak(make_keccak_instruction_data(1, len(msg))))
-    trx.add(sol_instr_05((from_addr + sign + msg), factory, factory_code, instance.caller))
+    trx.add(sol_instr_keccak(make_keccak_instruction_data(1, len(msg), 5)))
+    trx.add(
+        sol_instr_05(
+            PublicKey(evm_loader_id),
+            PublicKey(instance.caller),
+            instance.acc.public_key(),
+            factory,
+            factory_code,
+            (collateral_pool_index_buf).to_bytes(4, 'little'),
+            create_collateral_pool_address(collateral_pool_index_buf),
+            from_addr + sign + msg
+        )
+    )
+    print("instruction created", len(trx.instructions), create_collateral_pool_address(collateral_pool_index_buf))
 
     result = send_transaction(client, trx, instance.acc)['result']
-    print(result)
+    # print(result)
     if result['meta']['err'] != None:
         print(result)
         print("Error: result['meta']['err'] != None")
@@ -51,12 +65,12 @@ def get_filehash(factory, factory_code, factory_eth, instance):
 
     assert (result['meta']['err'] == None)
     assert (len(result['meta']['innerInstructions']) == 1)
-    assert (len(result['meta']['innerInstructions'][0]['instructions']) == 2)
-    data = b58decode(result['meta']['innerInstructions'][0]['instructions'][1]['data'])
+    assert (len(result['meta']['innerInstructions'][0]['instructions']) == 4)
+    data = b58decode(result['meta']['innerInstructions'][0]['instructions'][3]['data'])
     assert (data[:1] == b'\x06')  # OnReturn
     assert (data[1] == 0x11)  # 11 - Machine encountered an explict stop
 
-    data = b58decode(result['meta']['innerInstructions'][0]['instructions'][0]['data'])
+    data = b58decode(result['meta']['innerInstructions'][0]['instructions'][2]['data'])
     assert (data[:1] == b'\x07')  # 7 means OnEvent
     assert (data[1:21] == factory_eth)
     assert (data[21:29] == bytes().fromhex('%016x' % 1)[::-1])  # topics len
@@ -101,8 +115,10 @@ def deploy_erc20(args):
         erc20_ether = bytes(Web3.keccak(b'\xff' + factory_eth + salt + erc20_filehash)[-20:])
 
         erc20_id = instance.loader.ether2program(erc20_ether)[0]
-        seed = b58encode(bytes.fromhex(erc20_ether.hex()))
-        erc20_code = accountWithSeed(instance.acc.public_key(), str(seed, 'utf8'), PublicKey(evm_loader_id))
+        (erc20_code, _) = instance.loader.ether2seed(erc20_ether)
+        seed = b58encode(ACCOUNT_SEED_VERSION + erc20_ether).decode('utf8')
+
+        # erc20_code = accountWithSeed(instance.acc.public_key(), str(seed, 'utf8'), PublicKey(evm_loader_id))
         print("erc20_id:", erc20_id)
         print("erc20_eth:", erc20_ether.hex())
         print("erc20_code:", erc20_code)
@@ -112,20 +128,21 @@ def deploy_erc20(args):
             createAccountWithSeed(
                 instance.acc.public_key(),
                 instance.acc.public_key(),
-                str(seed, 'utf8'),
+                seed,
                 10 ** 9,
-                2000,
+                20000,
                 PublicKey(evm_loader_id))
         )
-        trx.add(instance.loader.createEtherAccountTrx(erc20_ether, erc20_code)[0])
+        trx.add(instance.loader.createEtherAccountTrx(erc20_ether, str(erc20_code))[0])
 
         (from_addr, sign, msg) = get_trx(
             factory_eth,
             instance.caller,
             instance.caller_ether,
             trx_data,
-            instance.caller_eth_pr_key,
-            0
+            bytes(instance.caller_eth_pr_key),
+            0,
+            False
         )
 
         add_meta = [
@@ -135,20 +152,23 @@ def deploy_erc20(args):
             AccountMeta(pubkey=erc20_code, is_signer=False, is_writable=True),
         ]
 
-        trx.add(sol_instr_keccak(make_keccak_instruction_data(1, len(msg))))
-        neon_evm_instr_05_single = create_neon_evm_instr_05(
-            evm_loader_id,
-            instance.caller,
-            instance.acc.public_key(),
-            factory,
-            factory_code,
-            collateral_pool_index_buf,
-            self.collateral_pool_address,
-            evm_instruction
+        trx.add(sol_instr_keccak(make_keccak_instruction_data(3, len(msg), 5)))
+
+        evm_instruction = from_addr + sign + msg
+        trx.add(
+            sol_instr_05(
+                evm_loader_id,
+                instance.caller,
+                instance.acc.public_key(),
+                factory,
+                factory_code,
+                (collateral_pool_index_buf).to_bytes(4, 'little'),
+                create_collateral_pool_address(collateral_pool_index_buf),
+                evm_instruction,
+                add_meta=add_meta
+            )
         )
-
-        trx.add(sol_instr_05((from_addr + sign + msg), factory, factory_code, instance.caller, add_meta=add_meta))
-
+        print("instruction is created")
         res = client.send_transaction(trx, instance.acc,
                                       opts=TxOpts(skip_confirmation=True, preflight_commitment="confirmed"))
 
