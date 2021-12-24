@@ -23,24 +23,22 @@ def check_address_event(result, factory_eth, erc20_eth):
     assert (data[61:93] == bytes().fromhex("%024x" % 0) + erc20_eth)  # sum
 
 
-def get_filehash(factory, factory_code, factory_eth, acc):
+def get_filehash(factory, factory_code, factory_eth, instance):
+    trx_data = abi.function_signature_to_4byte_selector('get_hash()')
+    (from_addr, sign, msg) = get_trx(
+        factory_eth,
+        instance.caller,
+        instance.caller_ether,
+        trx_data,
+        bytes(instance.caller_eth_pr_key),
+        0
+    )
+
     trx = Transaction()
-    trx.add(
-        TransactionInstruction(
-            program_id=evm_loader_id,
-            data=bytearray.fromhex("03") + abi.function_signature_to_4byte_selector('get_hash()'),
-            keys=[
-                AccountMeta(pubkey=factory, is_signer=False, is_writable=True),
-                AccountMeta(pubkey=get_associated_token_address(PublicKey(factory), ETH_TOKEN_MINT_ID), is_signer=False,
-                            is_writable=True),
-                AccountMeta(pubkey=factory_code, is_signer=False, is_writable=True),
-                AccountMeta(pubkey=acc.public_key(), is_signer=True, is_writable=False),
-                AccountMeta(pubkey=evm_loader_id, is_signer=False, is_writable=False),
-                AccountMeta(pubkey=ETH_TOKEN_MINT_ID, is_signer=False, is_writable=False),
-                AccountMeta(pubkey=TOKEN_PROGRAM_ID, is_signer=False, is_writable=False),
-                AccountMeta(pubkey=PublicKey(sysvarclock), is_signer=False, is_writable=False),
-            ]))
-    result = send_transaction(client, trx, acc)['result']
+    trx.add(sol_instr_keccak(make_keccak_instruction_data(1, len(msg))))
+    trx.add(sol_instr_05((from_addr + sign + msg), factory, factory_code, instance.caller))
+
+    result = send_transaction(client, trx, instance.acc)['result']
     print(result)
     if result['meta']['err'] != None:
         print(result)
@@ -73,20 +71,20 @@ def deploy_erc20(args):
 
     res = solana_cli().call("config set --keypair " + instance.keypath + " -C config.yml" + args.postfix)
 
-    res = instance.loader.deploy(erc20_factory_path, caller=instance.caller, config="config.yml" + args.postfix)
+    res = instance.loader.deploy(erc20_factory_path,  config="config.yml" + args.postfix)
     (factory, factory_eth, factory_code) = (res['programId'], bytes.fromhex(res['ethereum'][2:]), res['codeId'])
 
     print("factory", factory)
     print("factory_eth", factory_eth.hex())
     print("factory_code", factory_code)
-    erc20_filehash = get_filehash(factory, factory_code, factory_eth, instance.acc)
-    func_name = bytearray.fromhex("03") + abi.function_signature_to_4byte_selector('create_erc20(bytes32)')
+    erc20_filehash = get_filehash(factory, factory_code, factory_eth, instance)
     receipt_list = []
 
     contracts = []
     event_error = 0
     receipt_error = 0
     total = 0
+    print("hello")
 
     if args.type == "swap":
         args_count = args.count * 2
@@ -99,7 +97,7 @@ def deploy_erc20(args):
         trx_count = getTransactionCount(client, factory)
 
         salt = bytes().fromhex("%064x" % int(trx_count + i))
-        trx_data = func_name + salt
+        trx_data = abi.function_signature_to_4byte_selector('create_erc20(bytes32)') + salt
         erc20_ether = bytes(Web3.keccak(b'\xff' + factory_eth + salt + erc20_filehash)[-20:])
 
         erc20_id = instance.loader.ether2program(erc20_ether)[0]
@@ -116,30 +114,41 @@ def deploy_erc20(args):
                 instance.acc.public_key(),
                 str(seed, 'utf8'),
                 10 ** 9,
-                20000,
+                2000,
                 PublicKey(evm_loader_id))
         )
         trx.add(instance.loader.createEtherAccountTrx(erc20_ether, erc20_code)[0])
 
-        trx.add(
-            TransactionInstruction(
-                program_id=evm_loader_id,
-                data=trx_data,
-                keys=[
-                    AccountMeta(pubkey=factory, is_signer=False, is_writable=True),
-                    AccountMeta(pubkey=get_associated_token_address(PublicKey(factory), ETH_TOKEN_MINT_ID),
-                                is_signer=False, is_writable=True),
-                    AccountMeta(pubkey=factory_code, is_signer=False, is_writable=True),
-                    AccountMeta(pubkey=instance.acc.public_key(), is_signer=True, is_writable=False),
-                    AccountMeta(pubkey=erc20_id, is_signer=False, is_writable=True),
-                    AccountMeta(pubkey=get_associated_token_address(PublicKey(erc20_id), ETH_TOKEN_MINT_ID),
-                                is_signer=False, is_writable=True),
-                    AccountMeta(pubkey=erc20_code, is_signer=False, is_writable=True),
-                    AccountMeta(pubkey=evm_loader_id, is_signer=False, is_writable=False),
-                    AccountMeta(pubkey=ETH_TOKEN_MINT_ID, is_signer=False, is_writable=False),
-                    AccountMeta(pubkey=TOKEN_PROGRAM_ID, is_signer=False, is_writable=False),
-                    AccountMeta(pubkey=PublicKey(sysvarclock), is_signer=False, is_writable=False),
-                ]))
+        (from_addr, sign, msg) = get_trx(
+            factory_eth,
+            instance.caller,
+            instance.caller_ether,
+            trx_data,
+            instance.caller_eth_pr_key,
+            0
+        )
+
+        add_meta = [
+            AccountMeta(pubkey=erc20_id, is_signer=False, is_writable=True),
+            AccountMeta(pubkey=get_associated_token_address(PublicKey(erc20_id), ETH_TOKEN_MINT_ID),
+                        is_signer=False, is_writable=True),
+            AccountMeta(pubkey=erc20_code, is_signer=False, is_writable=True),
+        ]
+
+        trx.add(sol_instr_keccak(make_keccak_instruction_data(1, len(msg))))
+        neon_evm_instr_05_single = create_neon_evm_instr_05(
+            evm_loader_id,
+            instance.caller,
+            instance.acc.public_key(),
+            factory,
+            factory_code,
+            collateral_pool_index_buf,
+            self.collateral_pool_address,
+            evm_instruction
+        )
+
+        trx.add(sol_instr_05((from_addr + sign + msg), factory, factory_code, instance.caller, add_meta=add_meta))
+
         res = client.send_transaction(trx, instance.acc,
                                       opts=TxOpts(skip_confirmation=True, preflight_commitment="confirmed"))
 

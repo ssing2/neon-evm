@@ -4,9 +4,9 @@ swap_contracts_file = "swap_contracts.json"
 pair_file =  "contracts/uniswap/pair.bin"
 user_tools_file = "contracts/uniswap/UserTools.binary"
 
-factory_eth = "3ED1bc1418F305a530D41c764B44Bc6bb319DD03"
-router_eth = "109CFeD64057CbF40bb26c02BEEBc9f090A08B0e"
-weth_eth = "Fd91f022D16BE1B889f3d236Bcc2DaF80b92Cc4d"
+factory_eth = "12993d55b96db38947d12753F6CE09Ab9Fe721A7"
+router_eth = "F9Ae97799ceFe456130CC9F3e4deB817Cf7869ab"
+weth_eth = "9D6A7a98721437Ae59D4b8253e80eBc642196d56"
 
 def deploy_ctor_init(instance, src, dest, ctor_hex):
     ctor = bytearray().fromhex(ctor_hex)
@@ -325,27 +325,6 @@ def create_pair(tools_sol, tools_code, tools_eth, token_a_eth, token_b_eth, inst
         res = send_transaction(client, trx, instance.acc)
 
     return (pair_sol, pair_eth, pair_code)
-
-
-def call_signed(self, input):
-    (from_addr, sign, msg, nonce) = self.get_call_parameters(input)
-
-    trx = Transaction()
-    trx.add(self.sol_instr_keccak(make_keccak_instruction_data(1, len(msg), 5)))
-    trx.add(self.sol_instr_05(from_addr + sign + msg))
-    return send_transaction(client, trx, self.acc)["result"]
-
-
-def create_storage_account(self, seed):
-    storage = PublicKey(sha256(bytes(self.acc.public_key()) + bytes(seed, 'utf8') + bytes(PublicKey(evm_loader_id))).digest())
-    print("Storage", storage)
-
-    if getBalance(storage) == 0:
-        trx = Transaction()
-        trx.add(createAccountWithSeed(self.acc.public_key(), self.acc.public_key(), seed, 10**9, 128*1024, PublicKey(evm_loader_id)))
-        send_transaction(client, trx, self.acc)
-
-    return storage
 
 
 def add_liquidity(args):
