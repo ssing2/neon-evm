@@ -9,14 +9,15 @@ collateral_pool_index_buf = 1
 erc20_factory_path = "contracts/Factory.binary"
 
 def check_address_event(result, factory_eth, erc20_eth):
+    # print(result)
     assert (result['meta']['err'] == None)
     assert (len(result['meta']['innerInstructions']) == 2)
-    assert (len(result['meta']['innerInstructions'][1]['instructions']) == 2)
-    data = b58decode(result['meta']['innerInstructions'][1]['instructions'][1]['data'])
+    assert (len(result['meta']['innerInstructions'][1]['instructions']) == 4)
+    data = b58decode(result['meta']['innerInstructions'][1]['instructions'][3]['data'])
     assert (data[:1] == b'\x06')  # OnReturn
     assert (data[1] == 0x11)  # 11 - Machine encountered an explict stop
 
-    data = b58decode(result['meta']['innerInstructions'][1]['instructions'][0]['data'])
+    data = b58decode(result['meta']['innerInstructions'][1]['instructions'][2]['data'])
     assert (data[:1] == b'\x07')  # 7 means OnEvent
     assert (data[1:21] == factory_eth)
     assert (data[21:29] == bytes().fromhex('%016x' % 1)[::-1])  # topics len
@@ -55,7 +56,6 @@ def get_filehash(factory, factory_code, factory_eth, instance):
     result = send_transaction(client, trx, instance.acc)['result']
     # print(result)
     if result['meta']['err'] != None:
-        print(result)
         print("Error: result['meta']['err'] != None")
         exit(1)
 
@@ -98,7 +98,6 @@ def deploy_erc20(args):
     event_error = 0
     receipt_error = 0
     total = 0
-    print("hello")
 
     if args.type == "swap":
         args_count = args.count * 2
@@ -142,7 +141,6 @@ def deploy_erc20(args):
             trx_data,
             bytes(instance.caller_eth_pr_key),
             0,
-            False
         )
 
         add_meta = [
@@ -170,7 +168,7 @@ def deploy_erc20(args):
         )
         print("instruction is created")
         res = client.send_transaction(trx, instance.acc,
-                                      opts=TxOpts(skip_confirmation=True, preflight_commitment="confirmed"))
+                                      opts=TxOpts(skip_confirmation=True, skip_preflight=True, preflight_commitment="confirmed"))
 
         receipt_list.append((str(erc20_id), erc20_ether, str(erc20_code), res["result"]))
 
