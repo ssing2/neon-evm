@@ -22,6 +22,8 @@ if args.step == "deploy_erc20":
 elif args.step == "create_acc":
     if args.type == "spl":
         create_account_spl(args)
+    elif args.type == "swap":
+        create_account_swap(args)
     else:
         create_accounts(args)
 elif args.step == "create_trx":
@@ -48,4 +50,6 @@ elif args.step == "create_collateral":
     create_collateral_pool(args)
 elif args.step == "transfer_to_senders":
     transfer_to_senders(args)
-
+elif args.step == "mint_acc":
+    if args.type == "swap":
+        mint_account_swap(args)

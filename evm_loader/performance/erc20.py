@@ -2,10 +2,8 @@ import json
 
 from tools import *
 from spl_ import mint_spl
-from uniswap import mint_and_approve_swap
 from solana.system_program import TransferParams, transfer
 
-collateral_pool_index_buf = 1
 erc20_factory_path = "contracts/Factory.binary"
 
 def check_address_event(result, factory_eth, erc20_eth):
@@ -189,7 +187,12 @@ def deploy_erc20(args):
             receipt_list = []
 
     with open(contracts_file + args.postfix, mode='w') as f:
-        f.write(json.dumps(contracts))
+        for (erc20_id, erc20_ether, erc20_code) in contracts:
+            line={}
+            line["erc20_id"] = erc20_id
+            line["erc20_ether"] = erc20_ether
+            line["erc20_code"] = erc20_code
+            f.write(json.dumps(line)+"\n")
 
     print("\ntotal:", total)
     print("event_error:", event_error)
@@ -289,51 +292,51 @@ def create_accounts(args):
             receipt_list = []
 
 
-    if args.type == "swap":
-        (confirmed, total, event_error, receipt_error, nonce_error, unknown_error, too_small_error) = \
-            mint_and_approve_swap(args, ether_accounts,  1000 * 10 ** 18, pr_key_list)
+    # if args.type == "swap":
+    #     (confirmed, total, event_error, receipt_error, nonce_error, unknown_error, too_small_error) = \
+    #         mint_and_approve_swap(args, ether_accounts,  1000 * 10 ** 18, pr_key_list)
+    #
+    #     to_file = []
+    #     for (acc_eth_hex, token_a_sol, token_a_eth, token_a_code, token_b_sol, token_b_eth, token_b_code) in confirmed:
+    #         (acc_sol, acc_prkey) = pr_key_list.get(acc_eth_hex)
+    #         to_file.append((acc_eth_hex, acc_prkey, acc_sol, token_a_sol, token_a_eth, token_a_code, token_b_sol, token_b_eth, token_b_code))
+    #
+    #     print("\n total accounts:", len(confirmed))
+    #     print("\n total accounts:", total)
+    #     print("mint, approve event_error:", event_error)
+    #     print("mint, approve receipt_error:", receipt_error)
+    #     print("mint, approve nonce_error:", nonce_error)
+    #     print("mint, approve unknown_error:", unknown_error)
+    #     print("mint, approve AccountDataTooSmall:", too_small_error)
+    #     print("minted and approved accounts:", len(to_file))
+    #
+    #     with open(accounts_file + args.postfix, mode='w') as f:
+    #         f.write(json.dumps(to_file))
+    # else:
+    if args.type == "spl":
+        # spl_token.mint()
+        (account_minted, total, event_error, receipt_error, nonce_error, unknown_error, too_small_error) = mint_spl(
+            ether_accounts, instance)
+    elif args.type == "erc20":  # erc20
+        # erc20.mint()
+        (account_minted, total, event_error, receipt_error, nonce_error, unknown_error, too_small_error) = mint_erc20(
+            args, ether_accounts, instance.acc, 1000 * 10 ** 18)
 
-        to_file = []
-        for (acc_eth_hex, token_a_sol, token_a_eth, token_a_code, token_b_sol, token_b_eth, token_b_code) in confirmed:
-            (acc_sol, acc_prkey) = pr_key_list.get(acc_eth_hex)
-            to_file.append((acc_eth_hex, acc_prkey, acc_sol, token_a_sol, token_a_eth, token_a_code, token_b_sol, token_b_eth, token_b_code))
+    to_file = []
+    for acc_eth_hex in account_minted:
+        (acc_sol, pr_key_hex) = pr_key_list.get(acc_eth_hex)
+        to_file.append((acc_eth_hex, pr_key_hex, acc_sol))
 
-        print("\n total accounts:", len(confirmed))
-        print("\n total accounts:", total)
-        print("mint, approve event_error:", event_error)
-        print("mint, approve receipt_error:", receipt_error)
-        print("mint, approve nonce_error:", nonce_error)
-        print("mint, approve unknown_error:", unknown_error)
-        print("mint, approve AccountDataTooSmall:", too_small_error)
-        print("minted and approved accounts:", len(to_file))
+    print("\nmint total:", total)
+    print("mint event_error:", event_error)
+    print("mint receipt_error:", receipt_error)
+    print("mint nonce_error:", nonce_error)
+    print("mint unknown_error:", unknown_error)
+    print("mint AccountDataTooSmall:", too_small_error)
+    print("total accounts:", len(to_file))
 
-        with open(accounts_file + args.postfix, mode='w') as f:
-            f.write(json.dumps(to_file))
-    else:
-        if args.type == "spl":
-            # spl_token.mint()
-            (account_minted, total, event_error, receipt_error, nonce_error, unknown_error, too_small_error) = mint_spl(
-                ether_accounts, instance)
-        elif args.type == "erc20":  # erc20
-            # erc20.mint()
-            (account_minted, total, event_error, receipt_error, nonce_error, unknown_error, too_small_error) = mint_erc20(
-                args, ether_accounts, instance.acc, 1000 * 10 ** 18)
-
-        to_file = []
-        for acc_eth_hex in account_minted:
-            (acc_sol, pr_key_hex) = pr_key_list.get(acc_eth_hex)
-            to_file.append((acc_eth_hex, pr_key_hex, acc_sol))
-
-        print("\nmint total:", total)
-        print("mint event_error:", event_error)
-        print("mint receipt_error:", receipt_error)
-        print("mint nonce_error:", nonce_error)
-        print("mint unknown_error:", unknown_error)
-        print("mint AccountDataTooSmall:", too_small_error)
-        print("total accounts:", len(to_file))
-
-        with open(accounts_file + args.postfix, mode='w') as f:
-            f.write(json.dumps(to_file))
+    with open(accounts_file + args.postfix, mode='w') as f:
+        f.write(json.dumps(to_file))
 
 
 

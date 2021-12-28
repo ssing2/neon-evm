@@ -1,12 +1,16 @@
 from tools import *
 
 swap_contracts_file = "swap_contracts.json"
+account_unminted_file = "account_unminted.json"
 pair_file =  "contracts/uniswap/pair.bin"
 user_tools_file = "contracts/uniswap/UserTools.binary"
 
-factory_eth = "3ED1bc1418F305a530D41c764B44Bc6bb319DD03"
-router_eth = "109CFeD64057CbF40bb26c02BEEBc9f090A08B0e"
-weth_eth = "Fd91f022D16BE1B889f3d236Bcc2DaF80b92Cc4d"
+# factory_eth = "3ED1bc1418F305a530D41c764B44Bc6bb319DD03"
+# router_eth = "109CFeD64057CbF40bb26c02BEEBc9f090A08B0e"
+# weth_eth = "Fd91f022D16BE1B889f3d236Bcc2DaF80b92Cc4d"
+factory_eth = "12993d55b96db38947d12753F6CE09Ab9Fe721A7"
+router_eth = "F9Ae97799ceFe456130CC9F3e4deB817Cf7869ab"
+weth_eth = "9D6A7a98721437Ae59D4b8253e80eBc642196d56"
 
 def deploy_ctor_init(instance, src, dest, ctor_hex):
     ctor = bytearray().fromhex(ctor_hex)
@@ -27,13 +31,13 @@ def deploy_swap(args):
     (router_sol, _)  = instance.loader.ether2program(router_eth)
 
     data = getAccountData(client, weth_sol, ACCOUNT_INFO_LAYOUT.sizeof())
-    weth_code = PublicKey(ACCOUNT_INFO_LAYOUT.parse(data).code_acc)
+    weth_code = PublicKey(ACCOUNT_INFO_LAYOUT.parse(data).code_account)
 
     data = getAccountData(client, factory_sol, ACCOUNT_INFO_LAYOUT.sizeof())
-    factory_code = PublicKey(ACCOUNT_INFO_LAYOUT.parse(data).code_acc)
+    factory_code = PublicKey(ACCOUNT_INFO_LAYOUT.parse(data).code_account)
 
     data = getAccountData(client, router_sol, ACCOUNT_INFO_LAYOUT.sizeof())
-    router_code = PublicKey(ACCOUNT_INFO_LAYOUT.parse(data).code_acc)
+    router_code = PublicKey(ACCOUNT_INFO_LAYOUT.parse(data).code_account)
 
     to_file = []
     to_file.append((weth_sol, weth_eth, str(weth_code)))
@@ -47,26 +51,317 @@ def deploy_swap(args):
     print(" ROUTER", router_sol, router_eth, router_code)
 
 
-def approve_send(erc20_sol, erc20_eth, erc20_code, msg_sender_sol, msg_sender_eth, msg_sender_prkey, router_eth,   acc, sum,):
+
+def create_account_swap(args):
+    print ("create_account_swap")
+    instance = init_wallet()
+
+    ether_accounts = []
+    receipt_list = []
+    pr_key_list = {}
+
+    total = 0
+    confirmed = 0
+
+    to_file = []
+    while confirmed < args.count:
+
+        pr_key = w3.eth.account.from_key(os.urandom(32))
+        acc_eth = bytes().fromhex(pr_key.address[2:])
+        trx = Transaction()
+        (transaction, acc_sol) = instance.loader.createEtherAccountTrx(acc_eth)
+        trx.add(transaction)
+        res = client.send_transaction(trx, instance.acc,
+                                      opts=TxOpts(skip_confirmation=True, skip_preflight=False, preflight_commitment="confirmed"))
+        receipt_list.append((acc_sol, acc_eth, pr_key, res['result']))
+
+        total = total + 1
+        if total % 5 == 0 :
+            for (acc_sol, acc_eth, pr_key, receipt) in receipt_list:
+                try:
+                    confirm_transaction_(client, receipt)
+                    res = client.get_confirmed_transaction(receipt)
+                    if res['result'] == None:
+                        print("createEtherAccount, get_confirmed_transaction() error")
+                    else:
+                        # print( acc_sol, acc_eth.hex())
+                        to_file.append((acc_sol, acc_eth, pr_key))
+                        confirmed = confirmed + 1;
+                except:
+                    print(f"transaction is lost {receipt}")
+            receipt_list = []
+
+    print("\ncreated accounts:", len(to_file))
+    print("total requests:", total)
+
+    with open(account_unminted_file + args.postfix, mode='w') as f:
+        for (acc_sol, acc_eth, pr_key) in to_file:
+            line = {}
+            line['address'] = acc_eth.hex()
+            line['pr_key'] = pr_key.privateKey.hex()
+            line['account'] = acc_sol
+            f.write(json.dumps(line)+ "\n")
+
+
+def mint_trx(erc20_sol, erc20_eth, erc20_code, account_eth,  sum, instance):
+    func_name = abi.function_signature_to_4byte_selector('mint(address,uint256)')
+
+    trx_data = func_name + \
+               bytes().fromhex("%024x" % 0 + account_eth) + \
+               bytes().fromhex("%064x" % sum)
+
+    (from_addr, sign, msg) = get_trx(
+        erc20_eth,
+        instance.caller,
+        instance.caller_ether,
+        trx_data,
+        bytes(instance.caller_eth_pr_key),
+        0,
+    )
+
+    evm_instruction = from_addr + sign + msg
+
+    trx = Transaction()
+    trx.add(sol_instr_keccak(make_keccak_instruction_data(1, len(msg), 5)))
+    trx.add(
+        sol_instr_05(
+            evm_loader_id,
+            instance.caller,
+            instance.acc.public_key(),
+            erc20_sol,
+            erc20_code,
+            (collateral_pool_index_buf).to_bytes(4, 'little'),
+            create_collateral_pool_address(collateral_pool_index_buf),
+            evm_instruction,
+        )
+    )
+    return trx
+
+
+def approve_trx(erc20_sol, erc20_eth, erc20_code, router_eth, sum, instance):
     func_name = abi.function_signature_to_4byte_selector('approve(address,uint256)')
     input = func_name +  bytes().fromhex("%024x" % 0 + router_eth) + bytes().fromhex("%064x" % sum)
 
     (from_addr, sign, msg) = get_trx(
-        bytes().fromhex(erc20_eth),
-        msg_sender_sol,
-        bytes().fromhex(msg_sender_eth),
+        erc20_eth,
+        instance.caller,
+        instance.caller_ether,
         input,
-        bytes.fromhex(msg_sender_prkey),
+        bytes(instance.caller_eth_pr_key),
         0
     )
-    trx = Transaction()
-    trx.add(sol_instr_keccak(make_keccak_instruction_data(1, len(msg))))
-    trx.add(sol_instr_05((from_addr + sign + msg), erc20_sol, erc20_code, msg_sender_sol))
+    evm_instruction = from_addr + sign + msg
 
-    res = client.send_transaction(trx, acc,
-                                  opts=TxOpts(skip_confirmation=True, skip_preflight=True,
-                                              preflight_commitment="confirmed"))
-    return res["result"]
+    trx = Transaction()
+    trx.add(sol_instr_keccak(make_keccak_instruction_data(3, len(msg), 5)))
+    trx.add(
+        sol_instr_05(
+            evm_loader_id,
+            instance.caller,
+            instance.acc.public_key(),
+            erc20_sol,
+            erc20_code,
+            (collateral_pool_index_buf).to_bytes(4, 'little'),
+            create_collateral_pool_address(collateral_pool_index_buf),
+            evm_instruction,
+        )
+    )
+    return trx
+
+def check_mint_event(result, erc20_eth, acc_from, acc_to, sum, return_code):
+    # assert(result['meta']['err'] == None)
+
+    if (len(result['meta']['innerInstructions']) != 2):
+        print("len(result['meta']['innerInstructions']) != 2", len(result['meta']['innerInstructions']))
+        return False
+
+    if (len(result['meta']['innerInstructions'][0]['instructions']) != 4):
+        print(result)
+        print("len(result['meta']['innerInstructions'][0]['instructions']) != 4",
+              len(result['meta']['innerInstructions'][0]['instructions']))
+        return False
+
+    data = b58decode(result['meta']['innerInstructions'][0]['instructions'][3]['data'])
+    if (data[:1] != b'\x06'):  #  OnReturn
+        print("data[:1] != x06", data[:1].hex())
+        return False
+
+    if(data[1:2] != return_code):    # 11 - Machine encountered an explict stop,  # 12 - Machine encountered an explict return
+        print("data[1:2] != return_code", data[1:2].hex(), return_code.hex())
+        return False
+
+    data = b58decode(result['meta']['innerInstructions'][0]['instructions'][2]['data'])
+    if(data[:1] != b'\x07'):  # 7 means OnEvent
+        print("data[:1] != x07", data[:1].hex())
+        return  False
+
+
+    if (data[1:21] != bytes.fromhex(erc20_eth)):
+        print("data[1:21] != bytes.fromhex(erc20_eth)", data[1:21].hex(), erc20_eth)
+        return False
+
+    if(data[21:29] != bytes().fromhex('%016x' % 3)[::-1]):  # topics len
+        print("data[21:29] != bytes().fromhex('%016x' % 3)[::-1]", data[21:29].hex())
+        return False
+
+    if(data[29:61] != abi.event_signature_to_log_topic('Transfer(address,address,uint256)')):  # topics
+        print("data[29:61] != abi.event_signature_to_log_topic('Transfer(address,address,uint256)')",
+              data[29:61].hex(),
+              abi.event_signature_to_log_topic('Transfer(address,address,uint256)').hex())
+        return False
+
+    if (data[61:93] != bytes().fromhex("%024x" % 0) + bytes.fromhex(acc_from)):
+        print("data[61:93] != bytes().fromhex('%024x' % 0) + bytes.fromhex(acc_from)",
+              data[61:93].hex(),
+              (bytes().fromhex('%024x' % 0) + bytes.fromhex(acc_from)).hex())
+        return False
+
+    if(data[93:125] != bytes().fromhex("%024x" % 0) + bytes.fromhex(acc_to)):  # from
+        print("data[93:125] != bytes().fromhex('%024x' % 0) + bytes.fromhex(acc_to)",
+              data[93:125].hex(),
+              (bytes().fromhex('%024x' % 0) + bytes.fromhex(acc_to)).hex()
+              )
+        return False
+
+    if (data[125:157] != bytes().fromhex("%064x" % sum)):  # value
+        print("data[125:157] != bytes().fromhex('%064x' % sum)",
+              data[125:157].hex(),
+              '%064x' % sum)
+        return False
+
+    return True
+
+def check_approve_event(result, erc20_eth, acc_from, acc_to, sum, return_code):
+    # assert(result['meta']['err'] == None)
+
+    if (len(result['meta']['innerInstructions']) != 2):
+        print("check event Approval")
+        print("len(result['meta']['innerInstructions']) != 2", len(result['meta']['innerInstructions']))
+        return False
+
+    if (len(result['meta']['innerInstructions'][1]['instructions']) != 4):
+        print("check event Approval")
+        print("len(result['meta']['innerInstructions'][1]['instructions']) != 4",
+              len(result['meta']['innerInstructions'][1]['instructions']))
+        return False
+
+    data = b58decode(result['meta']['innerInstructions'][1]['instructions'][3]['data'])
+    if (data[:1] != b'\x06'):  #  OnReturn
+        print("check event Approval")
+        print("data[:1] != x06", data[:1].hex())
+        return False
+
+    if(data[1:2] != return_code):    # 11 - Machine encountered an explict stop,  # 12 - Machine encountered an explict return
+        print("check event Approval")
+        print("data[1:2] != return_code", data[1:2].hex(), return_code.hex())
+        return False
+
+    data = b58decode(result['meta']['innerInstructions'][1]['instructions'][2]['data'])
+    if(data[:1] != b'\x07'):  # 7 means OnEvent
+        print("check event Approval")
+        print("data[:1] != x07", data[:1].hex())
+        return  False
+
+
+    if (data[1:21] != bytes.fromhex(erc20_eth)):
+        print("check event Approval")
+        print("data[1:21] != bytes.fromhex(erc20_eth)", data[1:21].hex(), erc20_eth)
+        return False
+
+    if(data[21:29] != bytes().fromhex('%016x' % 3)[::-1]):  # topics len
+        print("check event Approval")
+        print("data[21:29] != bytes().fromhex('%016x' % 3)[::-1]", data[21:29].hex())
+        return False
+
+    if(data[29:61] != abi.event_signature_to_log_topic('Approval(address,address,uint256)')):  # topics
+        print("check event Approval")
+        print("data[29:61] != abi.event_signature_to_log_topic('Approval(address,address,uint256)')",
+              data[29:61].hex(),
+              abi.event_signature_to_log_topic('Approval(address,address,uint256)').hex())
+        return False
+
+    if (data[61:93] != bytes().fromhex("%024x" % 0) + bytes.fromhex(acc_from)):
+        print(result)
+        print("check event Approval")
+        print("data[61:93] != bytes().fromhex('%024x' % 0) + bytes.fromhex(acc_from)",
+              data[61:93].hex(),
+              (bytes().fromhex('%024x' % 0) + bytes.fromhex(acc_from)).hex())
+        return False
+
+    if(data[93:125] != bytes().fromhex("%024x" % 0) + bytes.fromhex(acc_to)):  # from
+        print("check event Approval")
+        print("data[93:125] != bytes().fromhex('%024x' % 0) + bytes.fromhex(acc_to)",
+              data[93:125].hex(),
+              (bytes().fromhex('%024x' % 0) + bytes.fromhex(acc_to)).hex()
+              )
+        return False
+
+    if (data[125:157] != bytes().fromhex("%064x" % sum)):  # value
+        print("check event Approval")
+        print("data[125:157] != bytes().fromhex('%064x' % sum)",
+              data[125:157].hex(),
+              '%064x' % sum)
+        return False
+
+    return True
+
+
+
+def mint_account_swap(args):
+    instance = init_wallet()
+    accounts = []
+    contracts = []
+    sum = 1000*10**18
+
+    with open(swap_contracts_file + args.postfix, mode='r') as f:
+        swap_contracts = json.loads(f.read())
+    (router_sol, router_eth, router_code) = swap_contracts[2]
+    print(router_sol, router_eth, router_code)
+
+    with open(account_unminted_file+args.postfix, mode='r') as f:
+        for line in f:
+            accounts.append(line)
+    with open(contracts_file+args.postfix, mode='r') as f:
+        for line in f:
+            contracts.append(line)
+
+    ia = iter(accounts)
+    ic = iter(contracts)
+
+    event_error = 0
+    total = 0
+    to_file = []
+    while total < args.count:
+        (address, pr_key, account) = get_acc(accounts, ia)
+        success = True
+        for count in range(2): # token_a, token_b
+            (erc20_id, erc20_ether, erc20_code) = get_erc20(contracts, ic)
+            trx = Transaction()
+            trx.add(mint_trx(erc20_id, bytes.fromhex(erc20_ether) , erc20_code, address, sum, instance))
+            trx.add(approve_trx(erc20_id, bytes.fromhex(erc20_ether), erc20_code, router_eth, sum, instance))
+
+            res = client.send_transaction(trx, instance.acc, opts=TxOpts(skip_confirmation=False,  preflight_commitment="confirmed"))
+
+            success = success and  \
+            check_mint_event(res['result'], erc20_ether, bytes(20).hex(), address, sum, b'\x11') and \
+                      check_approve_event(res['result'], erc20_ether, instance.caller_ether.hex(), router_eth, sum, b'\x12')
+
+        if success:
+            to_file.append((address, pr_key, account))
+        else:
+            event_error +=1
+
+        total = total + 1
+    print("\ntotal", total)
+    print("event_error", event_error)
+
+    with open(accounts_file + args.postfix, mode='w') as f:
+        for (address, pr_key, account) in to_file:
+            line = {}
+            line['address'] = address
+            line['pr_key'] = pr_key
+            line['account'] = account
+            f.write(json.dumps(line)+ "\n")
 
 
 
@@ -75,11 +370,6 @@ def sol_instr_10_continue(meta, step_count):
                                   data=bytearray.fromhex("0A") + step_count.to_bytes(8, byteorder='little'),
                                   keys=meta)
 
-
-
-def sol_instr_keccak(keccak_instruction):
-    return TransactionInstruction(program_id=keccakprog, data=keccak_instruction, keys=[
-        AccountMeta(pubkey=PublicKey(keccakprog), is_signer=False, is_writable=False), ])
 
 
 def create_storage_account(seed, acc):
@@ -96,97 +386,6 @@ def create_storage_account(seed, acc):
     return storage
 
 
-def mint_and_approve_swap(args, accounts, sum, pr_key_list):
-    event_error = 0
-    receipt_error = 0
-    nonce_error = 0
-    too_small_error = 0
-    unknown_error = 0
-    acc_and_tokens = []
-
-    with open(contracts_file + args.postfix, mode='r') as f:
-        contracts = json.loads(f.read())
-
-    with open(swap_contracts_file + args.postfix, mode='r') as f:
-        swap_contracts = json.loads(f.read())
-    (router_sol, router_eth, router_code) = swap_contracts[2]
-    print(router_sol, router_eth, router_code)
-
-    senders = init_senders(args)
-
-    receipt_list = []
-    ia = iter(accounts)
-    ic = iter(contracts)
-
-    total = 0
-    while total < args.count:
-        print("mint ", total)
-
-        try:
-            (token_a_sol, token_a_eth, token_a_code) = next(ic)
-        except StopIteration as err:
-            ic = iter(contracts)
-            (token_a_sol, token_a_eth, token_a_code) = next(ic)
-
-        try:
-            (token_b_sol, token_b_eth, token_b_code) = next(ic)
-        except StopIteration as err:
-            ic = iter(contracts)
-            (token_b_sol, token_b_eth, token_b_code) = next(ic)
-
-        try:
-            (account_eth, account_sol) = next(ia)
-        except StopIteration as err:
-            ia = iter(accounts)
-            (account_eth, account_sol) = next(ia)
-        (_, account_prkey) = pr_key_list.get(account_eth)
-
-        one_acc_receipts = []
-        acc = senders.next_acc()
-
-        receipt = mint_erc20_send(token_a_sol, token_a_code, account_eth, account_sol, acc, sum)
-        one_acc_receipts.append((token_a_eth, bytes(20).hex(), account_eth, receipt))
-
-        receipt = mint_erc20_send(token_b_sol, token_b_code, account_eth, account_sol, acc, sum)
-        one_acc_receipts.append((token_b_eth, bytes(20).hex(), account_eth, receipt))
-
-        receipt = approve_send(token_a_sol, token_a_eth, token_a_code, account_sol, account_eth, account_prkey, router_eth, acc, sum)
-        one_acc_receipts.append((token_a_eth, account_eth, router_eth, receipt))
-
-        receipt = approve_send(token_b_sol, token_b_eth, token_b_code, account_sol, account_eth, account_prkey, router_eth, acc, sum)
-        one_acc_receipts.append((token_b_eth, account_eth, router_eth, receipt))
-
-        receipt_list.append(
-            (one_acc_receipts, token_a_sol, token_a_eth, token_a_code, token_b_sol, token_b_eth, token_b_code)
-        )
-
-        total = total + 1
-        if total % 100 == 0 or total == args.count:
-            for (one_acc_receipts, token_a_sol, token_a_eth, token_a_code, token_b_sol, token_b_eth, token_b_code) in receipt_list:
-                cnt = 0
-                confirmed = []
-                for (erc20_eth_hex, msg_sender, to, receipt) in one_acc_receipts:
-                    if cnt < 2:
-                        (confirmed_, event_error_, receipt_error_, nonce_error_, unknown_error_, too_small_error_) = \
-                            mint_or_approve_confirm([(erc20_eth_hex, msg_sender, to, receipt)], sum, "Transfer")
-                    else:
-                        (confirmed_, event_error_, receipt_error_, nonce_error_, unknown_error_, too_small_error_) =  \
-                            mint_or_approve_confirm([(erc20_eth_hex, msg_sender, to, receipt)], sum, "Approval")
-                    cnt = cnt + 1
-                    confirmed = confirmed + confirmed_
-                    event_error = event_error + event_error_
-                    receipt_error = receipt_error + receipt_error_
-                    nonce_error = nonce_error + nonce_error_
-                    unknown_error = unknown_error + unknown_error_
-                    too_small_error = too_small_error + too_small_error_
-
-                if len(confirmed) == 4:  # all transactions of the account is successful
-                    item = (confirmed[0], token_a_sol, token_a_eth, token_a_code, token_b_sol, token_b_eth, token_b_code)
-                    acc_and_tokens.append(item)
-            receipt_list = []
-
-
-    return (acc_and_tokens, total, event_error, receipt_error, nonce_error, unknown_error, too_small_error)
 
 
 def get_salt(tool_sol, tool_code, tool_eth, token_a, token_b, acc):

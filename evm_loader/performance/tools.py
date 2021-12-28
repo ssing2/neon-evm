@@ -37,6 +37,7 @@ senders_file = "sender.json"
 verify_file = "verify.json"
 collateral_file = "collateral.json"
 ETH_TOKEN_MINT_ID: PublicKey = PublicKey(os.environ.get("ETH_TOKEN_MINT"))
+collateral_pool_index_buf = 1
 
 trx_count = {}
 
@@ -105,79 +106,79 @@ class init_wallet():
 
 
 
-def check_approve_event(result, erc20_eth, acc_from, acc_to, sum, return_code):
-    # assert(result['meta']['err'] == None)
-
-    if (len(result['meta']['innerInstructions']) != 1):
-        print("check event Approval")
-        print("len(result['meta']['innerInstructions']) != 1", len(result['meta']['innerInstructions']))
-        return False
-
-    if (len(result['meta']['innerInstructions'][0]['instructions']) != 2):
-        print("check event Approval")
-        print("len(result['meta']['innerInstructions'][0]['instructions']) != 2",
-              len(result['meta']['innerInstructions'][0]['instructions']))
-        return False
-
-    data = b58decode(result['meta']['innerInstructions'][0]['instructions'][1]['data'])
-    if (data[:1] != b'\x06'):  #  OnReturn
-        print("check event Approval")
-        print("data[:1] != x06", data[:1].hex())
-        return False
-
-    if(data[1:2] != return_code):    # 11 - Machine encountered an explict stop,  # 12 - Machine encountered an explict return
-        print("check event Approval")
-        print("data[1:2] != return_code", data[1:2].hex(), return_code.hex())
-        return False
-
-    data = b58decode(result['meta']['innerInstructions'][0]['instructions'][0]['data'])
-    if(data[:1] != b'\x07'):  # 7 means OnEvent
-        print("check event Approval")
-        print("data[:1] != x07", data[:1].hex())
-        return  False
-
-
-    if (data[1:21] != bytes.fromhex(erc20_eth)):
-        print("check event Approval")
-        print("data[1:21] != bytes.fromhex(erc20_eth)", data[1:21].hex(), erc20_eth)
-        return False
-
-    if(data[21:29] != bytes().fromhex('%016x' % 3)[::-1]):  # topics len
-        print("check event Approval")
-        print("data[21:29] != bytes().fromhex('%016x' % 3)[::-1]", data[21:29].hex())
-        return False
-
-    if(data[29:61] != abi.event_signature_to_log_topic('Approval(address,address,uint256)')):  # topics
-        print("check event Approval")
-        print("data[29:61] != abi.event_signature_to_log_topic('Approval(address,address,uint256)')",
-              data[29:61].hex(),
-              abi.event_signature_to_log_topic('Approval(address,address,uint256)').hex())
-        return False
-
-    if (data[61:93] != bytes().fromhex("%024x" % 0) + bytes.fromhex(acc_from)):
-        print(result)
-        print("check event Approval")
-        print("data[61:93] != bytes().fromhex('%024x' % 0) + bytes.fromhex(acc_from)",
-              data[61:93].hex(),
-              (bytes().fromhex('%024x' % 0) + bytes.fromhex(acc_from)).hex())
-        return False
-
-    if(data[93:125] != bytes().fromhex("%024x" % 0) + bytes.fromhex(acc_to)):  # from
-        print("check event Approval")
-        print("data[93:125] != bytes().fromhex('%024x' % 0) + bytes.fromhex(acc_to)",
-              data[93:125].hex(),
-              (bytes().fromhex('%024x' % 0) + bytes.fromhex(acc_to)).hex()
-              )
-        return False
-
-    if (data[125:157] != bytes().fromhex("%064x" % sum)):  # value
-        print("check event Approval")
-        print("data[125:157] != bytes().fromhex('%064x' % sum)",
-              data[125:157].hex(),
-              '%064x' % sum)
-        return False
-
-    return True
+# def check_approve_event(result, erc20_eth, acc_from, acc_to, sum, return_code):
+#     # assert(result['meta']['err'] == None)
+#
+#     if (len(result['meta']['innerInstructions']) != 1):
+#         print("check event Approval")
+#         print("len(result['meta']['innerInstructions']) != 1", len(result['meta']['innerInstructions']))
+#         return False
+#
+#     if (len(result['meta']['innerInstructions'][0]['instructions']) != 2):
+#         print("check event Approval")
+#         print("len(result['meta']['innerInstructions'][0]['instructions']) != 2",
+#               len(result['meta']['innerInstructions'][0]['instructions']))
+#         return False
+#
+#     data = b58decode(result['meta']['innerInstructions'][0]['instructions'][1]['data'])
+#     if (data[:1] != b'\x06'):  #  OnReturn
+#         print("check event Approval")
+#         print("data[:1] != x06", data[:1].hex())
+#         return False
+#
+#     if(data[1:2] != return_code):    # 11 - Machine encountered an explict stop,  # 12 - Machine encountered an explict return
+#         print("check event Approval")
+#         print("data[1:2] != return_code", data[1:2].hex(), return_code.hex())
+#         return False
+#
+#     data = b58decode(result['meta']['innerInstructions'][0]['instructions'][0]['data'])
+#     if(data[:1] != b'\x07'):  # 7 means OnEvent
+#         print("check event Approval")
+#         print("data[:1] != x07", data[:1].hex())
+#         return  False
+#
+#
+#     if (data[1:21] != bytes.fromhex(erc20_eth)):
+#         print("check event Approval")
+#         print("data[1:21] != bytes.fromhex(erc20_eth)", data[1:21].hex(), erc20_eth)
+#         return False
+#
+#     if(data[21:29] != bytes().fromhex('%016x' % 3)[::-1]):  # topics len
+#         print("check event Approval")
+#         print("data[21:29] != bytes().fromhex('%016x' % 3)[::-1]", data[21:29].hex())
+#         return False
+#
+#     if(data[29:61] != abi.event_signature_to_log_topic('Approval(address,address,uint256)')):  # topics
+#         print("check event Approval")
+#         print("data[29:61] != abi.event_signature_to_log_topic('Approval(address,address,uint256)')",
+#               data[29:61].hex(),
+#               abi.event_signature_to_log_topic('Approval(address,address,uint256)').hex())
+#         return False
+#
+#     if (data[61:93] != bytes().fromhex("%024x" % 0) + bytes.fromhex(acc_from)):
+#         print(result)
+#         print("check event Approval")
+#         print("data[61:93] != bytes().fromhex('%024x' % 0) + bytes.fromhex(acc_from)",
+#               data[61:93].hex(),
+#               (bytes().fromhex('%024x' % 0) + bytes.fromhex(acc_from)).hex())
+#         return False
+#
+#     if(data[93:125] != bytes().fromhex("%024x" % 0) + bytes.fromhex(acc_to)):  # from
+#         print("check event Approval")
+#         print("data[93:125] != bytes().fromhex('%024x' % 0) + bytes.fromhex(acc_to)",
+#               data[93:125].hex(),
+#               (bytes().fromhex('%024x' % 0) + bytes.fromhex(acc_to)).hex()
+#               )
+#         return False
+#
+#     if (data[125:157] != bytes().fromhex("%064x" % sum)):  # value
+#         print("check event Approval")
+#         print("data[125:157] != bytes().fromhex('%064x' % sum)",
+#               data[125:157].hex(),
+#               '%064x' % sum)
+#         return False
+#
+#     return True
 
 
 def check_transfer_event(result, erc20_eth, acc_from, acc_to, sum, return_code):
@@ -366,6 +367,17 @@ def get_acc(accounts, ia):
     return (info["address"], info["pr_key"], info["account"])
 
 
+def get_erc20(contracts, ic):
+    try:
+        line = next(ic)
+    except StopIteration as err:
+        ic = iter(contracts)
+        line = next(ic)
+
+    info = json.loads(line)
+    return (info["erc20_id"], info["erc20_ether"], info["erc20_code"])
+
+
 def get_trx(contract_eth, caller, caller_eth, input, pr_key, value, use_local_nonce_counter=True):
     if trx_count.get(caller) != None and use_local_nonce_counter:
         trx_count[caller] = trx_count[caller] + 1
@@ -401,15 +413,17 @@ def confirm_transaction_(http_client, tx_sig, confirmations=0):
     raise RuntimeError("could not confirm transaction: ", tx_sig)
 
 
-def sol_instr_05(evm_loader_program_id,
-                                    caller_sol_acc,
-                                    operator_sol_acc,
-                                    contract_sol_acc,
-                                    code_sol_acc,
-                                    collateral_pool_index_buf,
-                                    collateral_pool_address,
-                                    evm_instruction,
-                                    add_meta = []):
+def sol_instr_05(
+                evm_loader_program_id,
+                caller_sol_acc,
+                operator_sol_acc,
+                contract_sol_acc,
+                code_sol_acc,
+                collateral_pool_index_buf,
+                collateral_pool_address,
+                evm_instruction,
+                add_meta = []
+    ):
     return TransactionInstruction(
         program_id=evm_loader_program_id,
         data=bytearray.fromhex("05") + collateral_pool_index_buf + evm_instruction,
