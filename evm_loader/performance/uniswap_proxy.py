@@ -68,7 +68,7 @@ def add_liquidity_proxy(args):
         for line in f:
             accounts.append(line)
 
-    sum = 10**18
+    sum = 10**17
     total = 0
     func_name = abi.function_signature_to_4byte_selector(
         'addLiquidity(address,address,uint256,uint256,uint256,uint256,address,uint256)')
@@ -121,7 +121,7 @@ def add_liquidity_proxy(args):
 
 
 def swap_proxy(args):
-    print("\nswap")
+    print("\nswap_proxy")
     instance = init_wallet()
 
     (router_sol, router_eth, router_code) = json.loads(periphery_contracts(instance))['router']
@@ -131,7 +131,7 @@ def swap_proxy(args):
         for line in f:
             liquidity.append(line)
 
-    sum = 10**18
+    sum = 10**17
     total = 0
     func_name = abi.function_signature_to_4byte_selector('swapExactTokensForTokens(uint256,uint256,address[],address,uint256)')
 
@@ -177,6 +177,6 @@ def swap_proxy(args):
         cycle_times.append(cycle_end - cycle_start)
 
 
-    print("total", total)
+    print("total:", total)
     print("time:", time.time() - start, "sec")
-    print("avg cycle time:                 ", statistics.mean(cycle_times), "sec")
+    print("avg cycle time:", statistics.mean(cycle_times), "sec")

@@ -312,7 +312,7 @@ def mint_account_swap(args):
     instance = init_wallet()
     accounts = []
     contracts = []
-    sum = 1000*10**18
+    sum = 10**18
 
 
     swap_contracts = json.loads(periphery_contracts(instance))
