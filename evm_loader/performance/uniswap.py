@@ -1,31 +1,16 @@
 from tools import *
 
-swap_contracts_file = "swap_contracts.json"
 account_unminted_file = "account_unminted.json"
 pair_file =  "contracts/uniswap/pair.bin"
 user_tools_file = "contracts/uniswap/UserTools.binary"
 
-# factory_eth = "3ED1bc1418F305a530D41c764B44Bc6bb319DD03"
-# router_eth = "109CFeD64057CbF40bb26c02BEEBc9f090A08B0e"
-# weth_eth = "Fd91f022D16BE1B889f3d236Bcc2DaF80b92Cc4d"
 factory_eth = "12993d55b96db38947d12753F6CE09Ab9Fe721A7"
 router_eth = "F9Ae97799ceFe456130CC9F3e4deB817Cf7869ab"
 weth_eth = "9D6A7a98721437Ae59D4b8253e80eBc642196d56"
 
-def deploy_ctor_init(instance, src, dest, ctor_hex):
-    ctor = bytearray().fromhex(ctor_hex)
 
-    with open(src, mode='rb') as rbin:
-        binary = rbin.read() + ctor
-        with open(dest, mode='wb') as wbin:
-            wbin.write(binary)
-            res = instance.loader.deploy(dest, instance.caller)
-            return (res['programId'], res['codeId'], bytes.fromhex(res['ethereum'][2:]))
+def periphery_contracts(instance):
 
-
-def deploy_swap(args):
-
-    instance = init_wallet()
     (weth_sol, _)  = instance.loader.ether2program(weth_eth)
     (factory_sol, _)  = instance.loader.ether2program(factory_eth)
     (router_sol, _)  = instance.loader.ether2program(router_eth)
@@ -39,17 +24,11 @@ def deploy_swap(args):
     data = getAccountData(client, router_sol, ACCOUNT_INFO_LAYOUT.sizeof())
     router_code = PublicKey(ACCOUNT_INFO_LAYOUT.parse(data).code_account)
 
-    to_file = []
-    to_file.append((weth_sol, weth_eth, str(weth_code)))
-    to_file.append((factory_sol, factory_eth, str(factory_code)))
-    to_file.append((router_sol, router_eth, str(router_code)))
-    with open(swap_contracts_file + args.postfix, mode='w') as f:
-        f.write(json.dumps(to_file))
-
-    print(" WETH:", weth_sol, weth_eth, weth_code)
-    print(" FACTORY:", factory_sol, factory_eth, factory_code)
-    print(" ROUTER", router_sol, router_eth, router_code)
-
+    info = {}
+    info['weth'] = (weth_sol, weth_eth, str(weth_code))
+    info['factory'] = (factory_sol, factory_eth, str(factory_code))
+    info['router'] = (router_sol, router_eth, str(router_code))
+    return json.dumps(info)
 
 
 def create_account_swap(args):
@@ -98,7 +77,7 @@ def create_account_swap(args):
         for (acc_sol, acc_eth, pr_key) in to_file:
             line = {}
             line['address'] = acc_eth.hex()
-            line['pr_key'] = pr_key.privateKey.hex()
+            line['pr_key'] = pr_key.privateKey.hex()[2:]
             line['account'] = acc_sol
             f.write(json.dumps(line)+ "\n")
 
@@ -138,16 +117,16 @@ def mint_trx(erc20_sol, erc20_eth, erc20_code, account_eth,  sum, instance):
     return trx
 
 
-def approve_trx(erc20_sol, erc20_eth, erc20_code, router_eth, sum, instance):
+def approve_trx(erc20_sol, erc20_eth, erc20_code, spender, sum, caller, caller_eth, caller_pr_key, instance):
     func_name = abi.function_signature_to_4byte_selector('approve(address,uint256)')
-    input = func_name +  bytes().fromhex("%024x" % 0 + router_eth) + bytes().fromhex("%064x" % sum)
+    input = func_name +  bytes().fromhex("%024x" % 0 + spender) + bytes().fromhex("%064x" % sum)
 
     (from_addr, sign, msg) = get_trx(
         erc20_eth,
-        instance.caller,
-        instance.caller_ether,
+        caller,
+        bytes().fromhex(caller_eth),
         input,
-        bytes(instance.caller_eth_pr_key),
+        bytes().fromhex(caller_pr_key),
         0
     )
     evm_instruction = from_addr + sign + msg
@@ -157,7 +136,7 @@ def approve_trx(erc20_sol, erc20_eth, erc20_code, router_eth, sum, instance):
     trx.add(
         sol_instr_05(
             evm_loader_id,
-            instance.caller,
+            caller,
             instance.acc.public_key(),
             erc20_sol,
             erc20_code,
@@ -313,10 +292,10 @@ def mint_account_swap(args):
     contracts = []
     sum = 1000*10**18
 
-    with open(swap_contracts_file + args.postfix, mode='r') as f:
-        swap_contracts = json.loads(f.read())
-    (router_sol, router_eth, router_code) = swap_contracts[2]
-    print(router_sol, router_eth, router_code)
+
+    swap_contracts = json.loads(periphery_contracts(instance))
+    (router_sol, router_eth, router_code) = swap_contracts['router']
+
 
     with open(account_unminted_file+args.postfix, mode='r') as f:
         for line in f:
@@ -334,11 +313,23 @@ def mint_account_swap(args):
     while total < args.count:
         (address, pr_key, account) = get_acc(accounts, ia)
         success = True
+        token_pair = []
         for count in range(2): # token_a, token_b
             (erc20_id, erc20_ether, erc20_code) = get_erc20(contracts, ic)
             trx = Transaction()
             trx.add(mint_trx(erc20_id, bytes.fromhex(erc20_ether) , erc20_code, address, sum, instance))
-            trx.add(approve_trx(erc20_id, bytes.fromhex(erc20_ether), erc20_code, router_eth, sum, instance))
+            trx.add(approve_trx(
+                    erc20_sol = erc20_id,
+                    erc20_eth = bytes().fromhex(erc20_ether),
+                    erc20_code = erc20_code,
+                    spender = router_eth,
+                    sum = sum,
+                    caller = account,
+                    caller_eth = address,
+                    caller_pr_key= pr_key,
+                    instance = instance
+                    )
+            )
 
             res = client.send_transaction(trx, instance.acc, opts=TxOpts(skip_confirmation=False,  preflight_commitment="confirmed"))
 
@@ -346,8 +337,10 @@ def mint_account_swap(args):
             check_mint_event(res['result'], erc20_ether, bytes(20).hex(), address, sum, b'\x11') and \
                       check_approve_event(res['result'], erc20_ether, instance.caller_ether.hex(), router_eth, sum, b'\x12')
 
+            token_pair.append((erc20_id, erc20_ether, erc20_code))
+
         if success:
-            to_file.append((address, pr_key, account))
+            to_file.append((address, pr_key, account, token_pair))
         else:
             event_error +=1
 
@@ -356,11 +349,21 @@ def mint_account_swap(args):
     print("event_error", event_error)
 
     with open(accounts_file + args.postfix, mode='w') as f:
-        for (address, pr_key, account) in to_file:
+        for (address, pr_key, account, token_pair) in to_file:
+            (token_a_sol, token_a_eth, token_a_code) = token_pair[0]
+            (token_b_sol, token_b_eth, token_b_code) = token_pair[1]
             line = {}
             line['address'] = address
             line['pr_key'] = pr_key
             line['account'] = account
+
+            line['token_a_sol'] = token_a_sol
+            line['token_a_eth'] = token_a_eth
+            line['token_a_code'] = token_a_code
+
+            line['token_b_sol'] = token_b_sol
+            line['token_b_eth'] = token_b_eth
+            line['token_b_code'] = token_b_code
             f.write(json.dumps(line)+ "\n")
 
 
@@ -369,8 +372,6 @@ def sol_instr_10_continue(meta, step_count):
     return TransactionInstruction(program_id=evm_loader_id,
                                   data=bytearray.fromhex("0A") + step_count.to_bytes(8, byteorder='little'),
                                   keys=meta)
-
-
 
 def create_storage_account(seed, acc):
     storage = PublicKey(
@@ -384,8 +385,6 @@ def create_storage_account(seed, acc):
         send_transaction(client, trx, acc)
 
     return storage
-
-
 
 
 def get_salt(tool_sol, tool_code, tool_eth, token_a, token_b, acc):
@@ -553,16 +552,11 @@ def add_liquidity(args):
 
     res = solana_cli().call("config set --keypair " + instance.keypath + " -C config.yml"+args.postfix)
 
-    with open(swap_contracts_file + args.postfix, mode='r') as f:
-        contracts = json.loads(f.read())
+    contracts = json.loads(periphery_contracts(instance))
+    (weth_sol, weth_eth, weth_code) = contracts['weth']
+    (factory_sol, factory_eth, factory_code)= contracts['factory']
+    (router_sol, router_eth, router_code) = contracts['router']
 
-    (weth_sol, weth_eth, weth_code) = contracts[0]
-    (factory_sol, factory_eth, factory_code)= contracts[1]
-    (router_sol, router_eth, router_code) = contracts[2]
-
-    print(" WETH:", weth_sol, weth_eth, weth_code)
-    print(" FACTORY:", factory_sol, factory_eth, factory_code)
-    print(" ROUTER", router_sol, router_eth, router_code)
 
     res = solana_cli().call("config set --keypair " + instance.keypath + " -C config.yml" + args.postfix)
     res = instance.loader.deploy(user_tools_file, caller=instance.caller, config="config.yml" + args.postfix)
@@ -689,16 +683,10 @@ def create_transactions_swap(args):
     instance = init_wallet()
     senders = init_senders(args)
 
-    with open(swap_contracts_file + args.postfix, mode='r') as f:
-        contracts = json.loads(f.read())
-
-    (weth_sol, weth_eth, weth_code) = contracts[0]
-    (factory_sol, factory_eth, factory_code)= contracts[1]
-    (router_sol, router_eth, router_code) = contracts[2]
-
-    print(" WETH:", weth_sol, weth_eth, weth_code)
-    print(" FACTORY:", factory_sol, factory_eth, factory_code)
-    print(" ROUTER", router_sol, router_eth, router_code)
+    contracts = json.loads(periphery_contracts(instance))
+    (weth_sol, weth_eth, weth_code) = contracts['weth']
+    (factory_sol, factory_eth, factory_code)= contracts['factory']
+    (router_sol, router_eth, router_code) = contracts['router']
 
 
     with open(liquidity_file+args.postfix, mode='r') as f:
