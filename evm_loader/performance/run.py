@@ -1,6 +1,6 @@
 from spl_ import *
 from uniswap import *
-from uniswap_proxy import add_liquidity_proxy
+from uniswap_proxy import add_liquidity_proxy, swap_proxy
 from erc20 import *
 
 
@@ -9,7 +9,7 @@ parser.add_argument('--count', metavar="count of the transaction",  type=int,  h
 parser.add_argument('--step', metavar="step of the test", type=str,
                     help= ' For ERC20.transfers: deploy_erc20, create_senders, create_collateral, create_acc, create_trx, veryfy_trx'
                           ' For spl-token transfers: create_senders, create_collateral, create_acc, create_trx, verify_trx'
-                          ' For swap operations: deploy_erc20, create_senders, create_acc, mint_acc, add_liquidity, create_trx.'
+                          ' For swap operations: deploy_erc20, create_senders, create_acc, mint_acc, add_liquidity, swap_tokens'
                           ' To top up the senders balance: transfer_to_senders')
 parser.add_argument('--postfix', metavar="filename postfix", type=str,  help='0,1,2..', default='')
 parser.add_argument('--type', metavar="transfer type", type=str,  help='erc20, spl, swap', default='erc20')
@@ -32,8 +32,6 @@ elif args.step == "create_trx":
         create_transactions_spl(args)
     elif args.type == "erc20":
         create_transactions(args)
-    elif args.type == "swap":
-        create_transactions_swap(args)
 elif args.step == "send_trx":
     send_transactions(args)
 elif args.step == "create_senders":
@@ -52,3 +50,6 @@ elif args.step == "transfer_to_senders":
 elif args.step == "mint_acc":
     if args.type == "swap":
         mint_account_swap(args)
+elif args.step == "swap_tokens":
+    if args.type == "swap":
+        swap_proxy(args)

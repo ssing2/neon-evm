@@ -47,9 +47,20 @@ def create_account_swap(args):
 
         pr_key = w3.eth.account.from_key(os.urandom(32))
         acc_eth = bytes().fromhex(pr_key.address[2:])
-        trx = Transaction()
+
         (transaction, acc_sol) = instance.loader.createEtherAccountTrx(acc_eth)
+        param = spl_token.TransferParams(
+            program_id=TOKEN_PROGRAM_ID,
+            source=instance.wallet_token,
+            dest=get_associated_token_address(PublicKey(acc_sol), ETH_TOKEN_MINT_ID),
+            owner=instance.acc.public_key(),
+            amount=10 ** 9
+        )
+
+        trx = Transaction()
         trx.add(transaction)
+        trx.add(spl_token.transfer(param))
+
         res = client.send_transaction(trx, instance.acc,
                                       opts=TxOpts(skip_confirmation=True, skip_preflight=False, preflight_commitment="confirmed"))
         receipt_list.append((acc_sol, acc_eth, pr_key, res['result']))
@@ -151,51 +162,61 @@ def check_mint_event(result, erc20_eth, acc_from, acc_to, sum, return_code):
     # assert(result['meta']['err'] == None)
 
     if (len(result['meta']['innerInstructions']) != 2):
+        print("check event Transfer")
         print("len(result['meta']['innerInstructions']) != 2", len(result['meta']['innerInstructions']))
         return False
 
     if (len(result['meta']['innerInstructions'][0]['instructions']) != 4):
         print(result)
+        print("check event Transfer")
         print("len(result['meta']['innerInstructions'][0]['instructions']) != 4",
               len(result['meta']['innerInstructions'][0]['instructions']))
         return False
 
     data = b58decode(result['meta']['innerInstructions'][0]['instructions'][3]['data'])
     if (data[:1] != b'\x06'):  #  OnReturn
+        print("check event Transfer")
         print("data[:1] != x06", data[:1].hex())
         return False
 
     if(data[1:2] != return_code):    # 11 - Machine encountered an explict stop,  # 12 - Machine encountered an explict return
+        print("check event Transfer")
         print("data[1:2] != return_code", data[1:2].hex(), return_code.hex())
         return False
 
     data = b58decode(result['meta']['innerInstructions'][0]['instructions'][2]['data'])
     if(data[:1] != b'\x07'):  # 7 means OnEvent
+        print("check event Transfer")
         print("data[:1] != x07", data[:1].hex())
         return  False
 
 
     if (data[1:21] != bytes.fromhex(erc20_eth)):
+        print("check event Transfer")
         print("data[1:21] != bytes.fromhex(erc20_eth)", data[1:21].hex(), erc20_eth)
         return False
 
     if(data[21:29] != bytes().fromhex('%016x' % 3)[::-1]):  # topics len
+        print("check event Transfer")
         print("data[21:29] != bytes().fromhex('%016x' % 3)[::-1]", data[21:29].hex())
         return False
 
     if(data[29:61] != abi.event_signature_to_log_topic('Transfer(address,address,uint256)')):  # topics
+        print("check event Transfer")
         print("data[29:61] != abi.event_signature_to_log_topic('Transfer(address,address,uint256)')",
               data[29:61].hex(),
               abi.event_signature_to_log_topic('Transfer(address,address,uint256)').hex())
         return False
 
     if (data[61:93] != bytes().fromhex("%024x" % 0) + bytes.fromhex(acc_from)):
+        print("check event Transfer")
         print("data[61:93] != bytes().fromhex('%024x' % 0) + bytes.fromhex(acc_from)",
               data[61:93].hex(),
               (bytes().fromhex('%024x' % 0) + bytes.fromhex(acc_from)).hex())
         return False
 
     if(data[93:125] != bytes().fromhex("%024x" % 0) + bytes.fromhex(acc_to)):  # from
+        print("check event Transfer")
         print("data[93:125] != bytes().fromhex('%024x' % 0) + bytes.fromhex(acc_to)",
               data[93:125].hex(),
               (bytes().fromhex('%024x' % 0) + bytes.fromhex(acc_to)).hex()
@@ -203,6 +224,7 @@ def check_mint_event(result, erc20_eth, acc_from, acc_to, sum, return_code):
         return False
 
     if (data[125:157] != bytes().fromhex("%064x" % sum)):  # value
+        print("check event Transfer")
         print("data[125:157] != bytes().fromhex('%064x' % sum)",
               data[125:157].hex(),
               '%064x' % sum)
@@ -335,7 +357,7 @@ def mint_account_swap(args):
 
             success = success and  \
             check_mint_event(res['result'], erc20_ether, bytes(20).hex(), address, sum, b'\x11') and \
-                      check_approve_event(res['result'], erc20_ether, instance.caller_ether.hex(), router_eth, sum, b'\x12')
+                      check_approve_event(res['result'], erc20_ether, address, router_eth, sum, b'\x12')
 
             token_pair.append((erc20_id, erc20_ether, erc20_code))
 
