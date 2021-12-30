@@ -4,9 +4,13 @@ account_unminted_file = "account_unminted.json"
 pair_file =  "contracts/uniswap/pair.bin"
 user_tools_file = "contracts/uniswap/UserTools.binary"
 
-factory_eth = "12993d55b96db38947d12753F6CE09Ab9Fe721A7"
-router_eth = "F9Ae97799ceFe456130CC9F3e4deB817Cf7869ab"
-weth_eth = "9D6A7a98721437Ae59D4b8253e80eBc642196d56"
+# factory_eth = "12993d55b96db38947d12753F6CE09Ab9Fe721A7"
+# router_eth = "F9Ae97799ceFe456130CC9F3e4deB817Cf7869ab"
+# weth_eth = "9D6A7a98721437Ae59D4b8253e80eBc642196d56"
+
+factory_eth = "1814A26B21CEdf2A87dDd1d9a8524173920e30Db"
+router_eth = "2405cE5ce29c0E834764c3Dd2078e71c4dBc77b5"
+weth_eth = "5A4add9B60D8E8060594E978dAF3e3e656CE2b02"
 
 
 def periphery_contracts(instance):
@@ -546,27 +550,27 @@ def create_pair(tools_sol, tools_code, tools_eth, token_a_eth, token_b_eth, inst
 
     return (pair_sol, pair_eth, pair_code)
 
-
-def call_signed(self, input):
-    (from_addr, sign, msg, nonce) = self.get_call_parameters(input)
-
-    trx = Transaction()
-    trx.add(self.sol_instr_keccak(make_keccak_instruction_data(1, len(msg), 5)))
-    trx.add(self.sol_instr_05(from_addr + sign + msg))
-    return send_transaction(client, trx, self.acc)["result"]
-
-
-def create_storage_account(self, seed):
-    storage = PublicKey(sha256(bytes(self.acc.public_key()) + bytes(seed, 'utf8') + bytes(PublicKey(evm_loader_id))).digest())
-    print("Storage", storage)
-
-    if getBalance(storage) == 0:
-        trx = Transaction()
-        trx.add(createAccountWithSeed(self.acc.public_key(), self.acc.public_key(), seed, 10**9, 128*1024, PublicKey(evm_loader_id)))
-        send_transaction(client, trx, self.acc)
-
-    return storage
-
+#
+# def call_signed(self, input):
+#     (from_addr, sign, msg, nonce) = self.get_call_parameters(input)
+#
+#     trx = Transaction()
+#     trx.add(self.sol_instr_keccak(make_keccak_instruction_data(1, len(msg), 5)))
+#     trx.add(self.sol_instr_05(from_addr + sign + msg))
+#     return send_transaction(client, trx, self.acc)["result"]
+#
+#
+# def create_storage_account(self, seed):
+#     storage = PublicKey(sha256(bytes(self.acc.public_key()) + bytes(seed, 'utf8') + bytes(PublicKey(evm_loader_id))).digest())
+#     print("Storage", storage)
+#
+#     if getBalance(storage) == 0:
+#         trx = Transaction()
+#         trx.add(createAccountWithSeed(self.acc.public_key(), self.acc.public_key(), seed, 10**9, 128*1024, PublicKey(evm_loader_id)))
+#         send_transaction(client, trx, self.acc)
+#
+#     return storage
+#
 
 def add_liquidity(args):
     instance = init_wallet()

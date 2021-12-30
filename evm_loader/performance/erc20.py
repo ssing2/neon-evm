@@ -3,6 +3,7 @@ import json
 from tools import *
 from spl_ import mint_spl
 from solana.system_program import TransferParams, transfer
+from uniswap import create_storage_account
 
 erc20_factory_path = "contracts/Factory.binary"
 
@@ -24,6 +25,8 @@ def check_address_event(result, factory_eth, erc20_eth):
 
 
 def get_filehash(factory, factory_code, factory_eth, instance):
+    storage = create_storage_account(os.urandom(10).hex(), instance.acc)
+
     trx_data = abi.function_signature_to_4byte_selector('get_hash()')
     (from_addr, sign, msg) = get_trx(
         factory_eth,
@@ -36,30 +39,77 @@ def get_filehash(factory, factory_code, factory_eth, instance):
     )
 
     trx = Transaction()
-    trx.add(sol_instr_keccak(make_keccak_instruction_data(1, len(msg), 5)))
+    # trx.add(sol_instr_keccak(make_keccak_instruction_data(1, len(msg), 5)))
+    trx.add(sol_instr_keccak(make_keccak_instruction_data(1, len(msg), 13)))
     trx.add(
-        sol_instr_05(
+        create_neon_evm_instr_19_partial_call(
             PublicKey(evm_loader_id),
             PublicKey(instance.caller),
             instance.acc.public_key(),
+            storage,
             factory,
             factory_code,
             (collateral_pool_index_buf).to_bytes(4, 'little'),
             create_collateral_pool_address(collateral_pool_index_buf),
-            from_addr + sign + msg
+            500,
+            from_addr+sign+msg,
+            writable_code=False,
+            add_meta=[]
         )
     )
-    print("instruction created", len(trx.instructions), create_collateral_pool_address(collateral_pool_index_buf))
+    print("Begin, PartialCallFromRawEthereumTXv02 ")
+    res = send_transaction(client, trx, instance.acc)
 
-    result = send_transaction(client, trx, instance.acc)['result']
+    while (True):
+        print("Continue")
+        trx = Transaction()
+
+        trx.add(create_neon_evm_instr_20_continue(
+            PublicKey(evm_loader_id),
+            PublicKey(instance.caller),
+            instance.acc.public_key(),
+            storage,
+            factory,
+            factory_code,
+            (collateral_pool_index_buf).to_bytes(4, 'little'),
+            create_collateral_pool_address(collateral_pool_index_buf),
+            500,
+            writable_code=False,
+            add_meta=[]
+            )
+        )
+        res = send_transaction(client, trx, instance.acc)
+        result = res["result"]
+
+        print(result)
+        if (result['meta']['innerInstructions'] and result['meta']['innerInstructions'][0]['instructions']):
+            data = b58decode(result['meta']['innerInstructions'][0]['instructions'][-1]['data'])
+            if (data[0] == 6):
+                print("ok")
+                break;
+
+    #     sol_instr_05(
+    #         PublicKey(evm_loader_id),
+    #         PublicKey(instance.caller),
+    #         instance.acc.public_key(),
+    #         factory,
+    #         factory_code,
+    #         (collateral_pool_index_buf).to_bytes(4, 'little'),
+    #         create_collateral_pool_address(collateral_pool_index_buf),
+    #         from_addr + sign + msg
+    #     )
+    # )
+    # print("instruction created", len(trx.instructions), create_collateral_pool_address(collateral_pool_index_buf))
+
+    # result = send_transaction(client, trx, instance.acc)['result']
     # print(result)
-    if result['meta']['err'] != None:
-        print("Error: result['meta']['err'] != None")
-        exit(1)
+    # if result['meta']['err'] != None:
+    #     print("Error: result['meta']['err'] != None")
+    #     exit(1)
 
-    if result == None:
-        print("Error: result == None")
-        exit(1)
+    # if result == None:
+    #     print("Error: result == None")
+    #     exit(1)
 
     assert (result['meta']['err'] == None)
     assert (len(result['meta']['innerInstructions']) == 1)
@@ -73,6 +123,7 @@ def get_filehash(factory, factory_code, factory_eth, instance):
     assert (data[1:21] == factory_eth)
     assert (data[21:29] == bytes().fromhex('%016x' % 1)[::-1])  # topics len
     hash = data[61:93]
+    print("hash", hash.hex() )
     return hash
 
 
@@ -90,6 +141,7 @@ def deploy_erc20(args):
     print("factory_eth", factory_eth.hex())
     print("factory_code", factory_code)
     erc20_filehash = get_filehash(factory, factory_code, factory_eth, instance)
+    # exit(1)
     receipt_list = []
 
     contracts = []

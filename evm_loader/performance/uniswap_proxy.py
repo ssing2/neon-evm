@@ -11,18 +11,32 @@ from eth_utils import abi
 from uniswap import periphery_contracts
 import statistics
 
-CONTRACT='''
-pragma solidity >=0.5.16;
+USER_FACTORY='''
+pragma solidity =0.5.16;
+import './ERC20.sol';
 
-    contract UserTools{
-    event Salt(bytes32 a);
+contract Factory{
+    event Address(address a);
+    event Hash (bytes32 a);
 
-    function get_salt(address tokenA, address tokenB) public  {
-        require(tokenA != tokenB, 'UniswapV2: IDENTICAL_ADDRESSES');
-        (address token0, address token1) = tokenA < tokenB ? (tokenA, tokenB) : (tokenB, tokenA);
-        require(token0 != address(0), 'UniswapV2: ZERO_ADDRESS');
-        bytes32 salt = keccak256(abi.encodePacked(token0, token1));
-        emit Salt(salt);
+    function get_hash() public {
+        bytes memory bytecode = type(ERC20).creationCode;
+        bytes32 hash = keccak256(abi.encodePacked(bytecode));
+        emit Hash(hash);
+    }
+
+    function create_erc20(bytes32 salt) public {
+        address addr;
+        bytes memory bytecode = type(ERC20).creationCode;
+        // bytes32 salt = keccak256(abi.encodePacked(a));
+
+        assembly {
+            addr := create2(0, add(bytecode, 32), mload(bytecode), salt)
+            if iszero(extcodesize(addr)) {
+                revert(0, 0)
+            }
+        }
+        emit Address(addr);
     }
 }
 '''
@@ -35,10 +49,10 @@ ETH_TOKEN_MINT_ID: PublicKey = PublicKey(os.environ.get("ETH_TOKEN_MINT", "HPsV9
 proxy = Web3(Web3.HTTPProvider(proxy_url))
 install_solc(version='0.7.0')
 
-def deploy_user_tools(instance):
-    print("\n\ndeploy_user_tools")
+def deploy_contract_proxy(instance, text):
+    print("\n\ndeploy_contract")
 
-    compiled = compile_source(CONTRACT)
+    compiled = compile_source(text)
     id, interface = compiled.popitem()
     contract = proxy.eth.contract(abi=interface['abi'], bytecode=interface['bin'])
     trx = proxy.eth.account.sign_transaction(dict(
@@ -96,7 +110,7 @@ def add_liquidity_proxy(args):
             nonce=proxy.eth.get_transaction_count(bytes.fromhex(info["address"])),
             chainId=proxy.eth.chain_id,
             gas=987654321,
-            gasPrice=0,
+            gasPrice=1000000000,
             to=bytes.fromhex(router_eth),
             value=0,
             data=input),
@@ -163,7 +177,7 @@ def swap_proxy(args):
             nonce=proxy.eth.get_transaction_count(bytes.fromhex(info["address"])),
             chainId=proxy.eth.chain_id,
             gas=987654321,
-            gasPrice=0,
+            gasPrice=1000000000,
             to=bytes.fromhex(router_eth),
             value=0,
             data=input),
@@ -180,3 +194,6 @@ def swap_proxy(args):
     print("total:", total)
     print("time:", time.time() - start, "sec")
     print("avg cycle time:", statistics.mean(cycle_times), "sec")
+
+
+
